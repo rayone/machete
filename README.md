@@ -1,4 +1,4 @@
-# Machete
+# Machete aka Mac-hete
 
 A macOS debloating and tuning toolkit for Apple Silicon, targeting macOS 26.x (Sequoia/Tahoe).
 
