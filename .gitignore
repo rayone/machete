@@ -1,0 +1,24 @@
+# macOS metadata
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+
+# Runtime-generated log files
+debloat-*.log
+cleanup-*.log
+optimizations-*.log
+uninstall-*.log
+
+# Runtime-generated restore artifacts (written by debloat.sh)
+snapshot-metadata.tsv
+debloat-*-RESTORE-CMD.txt
+restore-*.sh
+
+# Local development tools
+mcp.json
+
+# Compiled membench binaries (build locally with membench/code/build.sh)
+membench/code/build/
+membench/Membench.app/

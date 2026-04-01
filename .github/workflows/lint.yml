@@ -1,0 +1,48 @@
+name: Lint
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["**"]
+
+jobs:
+  shellcheck:
+    name: ShellCheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install ShellCheck
+        run: sudo apt-get install -y shellcheck
+
+      - name: Run ShellCheck on all shell scripts
+        run: |
+          shellcheck \
+            debloat.sh \
+            optimize.sh \
+            cleanup.sh \
+            restore.sh \
+            uninstall.sh \
+            membench/code/build.sh \
+            membench/code/run.sh
+
+  yamllint:
+    name: YAML Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install yamllint
+        run: sudo apt-get install -y yamllint
+
+      - name: Run yamllint on manifest
+        run: |
+          yamllint -d '{
+            extends: relaxed,
+            rules: {
+              line-length: {max: 200},
+              comments: {min-spaces-from-content: 1},
+              truthy: disable
+            }
+          }' manifest.yaml

@@ -1,0 +1,2593 @@
+# ==============================================================================
+# DEBLOAT MANIFEST — macOS 26.4 / Apple
+# ==============================================================================
+#
+# SCHEMA per feature:
+#
+#   feature_name:
+#     description: Human-readable purpose
+#
+#     # ---- 1. CORE SYSTEM BUILDING BLOCKS --------------------------------
+#     # High risk — removing these can break apps or the OS itself.
+#
+#     frameworks:   Public + private frameworks (paths from / — deleted from SSV mount)
+#                   Shared libraries (APIs) used by apps and the OS.
+#                   Location: /System/Library/Frameworks + PrivateFrameworks.
+#                   Think of these as macOS's "code toolbox" — critical for
+#                   system and app functionality.  RISK: HIGH.
+#
+#     coreservices: /System/Library/CoreServices/**/*.app or files (full path from /)
+#                   Essential system apps and components (Finder, Dock, login
+#                   services).  Core OS behaviour lives here — disabling causes
+#                   major system instability.  RISK: HIGH.
+#
+#     kexts:        /System/Library/Extensions/*.kext or *.bundle
+#                   Kernel Extensions — low-level hardware drivers (Wi-Fi,
+#                   graphics, USB).  Modern macOS is phasing these out in favour
+#                   of system extensions.  RISK: HIGH.
+#
+#     # ---- 2. BACKGROUND SERVICES & SYSTEM PROCESSES ---------------------
+#     # Moderate risk — controls what runs automatically; common tuning target.
+#
+#     launchdaemon_plists: SSV LaunchDaemon plist filenames (label only, no .plist)
+#                   Definitions for system-wide background services managed by
+#                   launchd.  These run as root regardless of who is logged in.
+#
+#     launchagent_plists:  SSV LaunchAgent plist filenames (label only, no .plist)
+#                   Definitions for user-level background services managed by
+#                   launchd.  Run in the user's login session.
+#
+#     daemons:      launchctl labels to disable in system domain (full label)
+#                   Actual system-domain service identifiers used with launchctl.
+#                   Disabling stops the service without removing its plist.
+#
+#     agents:       launchctl labels to disable in gui/$UID domain (suffix after com.apple.)
+#                   User-domain service identifiers used with launchctl.
+#                   Often targeted for performance tuning or privacy hardening.
+#
+#     services:     /System/Library/Services/*.app
+#                   macOS "Services" menu items (right-click actions).  Provide
+#                   quick actions between apps.  Usually safe; minor usability
+#                   impact if removed.
+#
+#     # ---- 3. EXTENSION & PLUGIN SYSTEM ----------------------------------
+#     # Moderate risk — plug-in points; disabling affects app features.
+#
+#     appex:        /System/Library/ExtensionKit/Extensions/*.appex
+#                   Sandboxed App Extensions (share sheets, widgets, Settings
+#                   panels).  Safe, modern extension mechanism — disabling
+#                   affects specific app features but rarely breaks the OS.
+#
+#     xpc:          Framework-embedded .xpc services (full path from /)
+#                   Background helper services using XPC (inter-process
+#                   communication).  Apps rely on them for modular tasks —
+#                   breaking them can crash the parent app.
+#
+#     pluginkit:    bundle IDs to suppress with pluginkit -e ignore
+#                   Suppresses plugin discovery via PluginKit without deleting
+#                   binaries from SSV.  Safer than deletion — used when the
+#                   binary must stay on disk (e.g. Spotlight hotkey handlers).
+#
+#     mdimporters:  /System/Library/Spotlight/*.mdimporter
+#                   Spotlight indexing plugins.  Allow specific file types to
+#                   be searchable — removing means those files won't appear in
+#                   Spotlight results.
+#
+#     # ---- 4. APP STRUCTURE & EMBEDDED COMPONENTS ------------------------
+#
+#     apps:         SSV paths under /System/Applications/ (or full path from /)
+#                   Top-level application bundles on the SSV.
+#
+#     helpers:      Framework-embedded .app helpers (full path from /)
+#                   Embedded mini-apps inside frameworks or other apps.  Handle
+#                   background tasks (updates, rendering, etc.) — common in
+#                   browsers and media apps.
+#
+#     # ---- 5. USER INTERFACE & SYSTEM UX ---------------------------------
+#
+#     prefpanes:    /System/Library/PreferencePanes/*.prefPane
+#                   System Settings panels.  Removing hides configuration UI
+#                   but does not disable the underlying feature.
+#
+#     menu_extras:  /System/Library/CoreServices/Menu\ Extras/*.menu
+#                   Menu bar icons (Wi-Fi, battery, clock, etc.).  Core user
+#                   interaction elements — removing hides the icon.
+#
+#     loctables:    ControlCenter .loctable filenames (relative to ControlCenter.app/Contents/Resources/)
+#                   Localization files (UI string translations).  Affect
+#                   language display only — safe to remove for unused locales.
+#
+#     input_methods: /System/Library/Input\ Methods/*.app
+#                   Keyboard/input systems for different languages and scripts.
+#                   Required for typing in the associated language.
+#
+#     # ---- 6. ASSETS & RESOURCES -----------------------------------------
+#
+#     assets:       /System/Library/AssetsV2/* directories
+#                   System-downloaded resources such as ML models, TTS voices,
+#                   and dictation assets.  Used by features like Siri and
+#                   dictation — safe to remove if the feature is also removed.
+#
+#     # ---- 7. USER-SPECIFIC DATA (safer to modify) -----------------------
+#
+#     user_containers:    ~/Library/Containers/* bundle IDs
+#                   Sandboxed app data directories.  Deleting resets the app
+#                   to a first-run state but does not break the OS.
+#
+#     user_group_containers: ~/Library/Group\ Containers/* group IDs
+#                   Shared data containers used by apps from the same developer
+#                   (e.g. syncing data across an app suite).
+#
+#     user_prefs:   ~/Library/Preferences/*.plist filenames (label only)
+#                   App and system preference files.  Safe to delete — the app
+#                   recreates them with defaults on next launch.
+#
+#     user_caches:  ~/Library/Caches/* directory names
+#                   Temporary/cached files.  Safe to clear — improves disk
+#                   space and sometimes performance.
+#
+#     # ---- 8. PATCHES ----------------------------------------------------
+#
+#     patches:      SSV in-place plist/binary patches (handled separately by executor)
+#
+# DEPENDENCY EVIDENCE (otool -L on kept binaries + launchctl procinfo):
+#   Finder links: TimeMachine.framework, CloudDocs.framework, Contacts.framework,
+#                 iCloudQuota.framework, SidecarUI.framework — frameworks stay on
+#                 disk; only the backing .app / daemon / agent is removed.
+#   ControlCenter links: IMCore.framework, FamilyControls.framework, SiriUI.framework,
+#                 SocialLayer.framework — same rule.
+#   loginwindow links: FindMyDevice.framework, FindMyMac.framework — frameworks stay.
+#   Dock links: AssistantServices.framework, GenerativeModels.framework — frameworks stay.
+#   cloudpaird (audioaccessoryd) advertises com.apple.BTServer.cloudpairing —
+#               NEVER disable; it is the BT audio pairing XPC service.
+#   DictationIM is independent of Siri (separate SpeechRecognitionCore path) — KEPT.
+#   corespeechd user agent: voice-trigger / Hey Siri — safe to disable.
+#   PerfPowerServicesExtended / PerfPowerServices: Battery pane depends on these — NEVER disable.
+#   coreaudiod / audiomxd / AirPlayXPCHelper / bluetoothaudiod / audioanalyticsd:
+#               disabling any causes audiomxd 80% CPU spin — NEVER touch.
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# SIRI & APPLE INTELLIGENCE
+# otool evidence: Dock links AssistantServices.framework + GenerativeModels.framework
+#   but only as lazy/weak — safe to remove backing binaries; framework dylibs stay.
+# ------------------------------------------------------------------------------
+siri_and_intelligence:
+  description: Siri assistant, Apple Intelligence, on-device ML inference stack
+  apps:
+    - System/Applications/Siri.app
+  helpers:
+    # SpeechDataInstallerd.app handles speech data installation; SpeechRecognitionServer.app provides recognition services.
+    # Removing them while keeping the framework creates broken functionality.
+    # - System/Library/PrivateFrameworks/SpeechObjects.framework/Versions/A/SpeechDataInstallerd.app
+    # - System/Library/PrivateFrameworks/SpeechObjects.framework/Versions/A/SpeechRecognitionServer.app
+  xpc: []
+  prefpanes:
+    #- Speech.prefPane
+  appex:
+    - SiriPreferenceExtension.appex
+    - SiriAutoEvalPlugin.appex
+    - SiriCoreMetricsWorker.appex
+    - SiriInferenceRuntimeDiagnostics.appex
+    - SiriMASPFLPush.appex
+    - SiriNotificationsAppIntentsExtension.appex
+    - SiriSuggestionsLightHousePlugin.appex
+    - SiriTurnRestatementExtension.appex
+    - SiriUploadWorker.appex
+    - SiriUserSegmentation.appex
+    - SiriVideoAppIntents.appex
+    - AssistantSettingsControlsExtension.appex
+    - BlackPowderInferenceExtension.appex
+    - PrivateMLClientInferenceProviderService.appex
+    - TGOnDeviceInferenceProviderService.appex
+    - VisualGenerationInference.appex
+    - FedAutoEvalPlugin.appex
+    - FedStatsMLHostPlugin.appex
+    - FedStatsMLHostPluginClassA.appex
+    - FedStatsMLHostPluginClassB.appex
+    - PrivateEvolutionPlugin.appex
+    - ZeoliteEvalExtension.appex
+    - CoreMotionFoundationModelExtension.appex
+    - AppleIntelligenceReportingSELFIngestor.appex
+    # - ODDIExperimentationExtension.appex
+    # - ODDIMetricsExtension.appex
+    # - ODDIPoirotExperimentationExtension.appex
+    # - ODDIPoirotMetricsExtension.appex
+    # - PCCAgentClientExtension.appex
+    # - SearchToolDiagnosticExtension.appex
+    # - SearchToolExtension.appex
+    # - SearchUploadWorker.appex
+    # - SpeakerIdSamplingExtension.appex
+  mdimporters: []
+  loctables: []
+  frameworks:
+    - System/Library/PrivateFrameworks/AssistantSettingsFoundation.framework
+    #- System/Library/PrivateFrameworks/CoreSpeech.framework
+    - System/Library/PrivateFrameworks/SiriTTSTraining.framework
+    # CRITICAL: SpeechObjects.framework is required by Setup Assistant (/System/Library/CoreServices/Setup Assistant.app).
+    # Verified via: otool -L showed non-weak linkage to SpeechObjects.framework and DictationServices.framework.
+    # Removal breaks device setup/restore flows and initial configuration wizard.
+    # - System/Library/PrivateFrameworks/SpeechObjects.framework
+    - System/Library/PrivateFrameworks/GenerativeExperiencesRuntime.framework
+    # - System/Library/PrivateFrameworks/PrivateCloudCompute.framework
+    - System/Library/PrivateFrameworks/ContinuousDialogManagerService.framework
+    # CRITICAL: Speech.framework contains localspeechrecognition.xpc used by system dictation.
+    # Verified via: ls /System/Library/Frameworks/Speech.framework/Versions/A/XPCServices/localspeechrecognition.xpc
+    # While primarily Siri-related, it provides on-device speech recognition that other apps may call.
+    # Removal may break dictation functionality in apps that use Speech framework APIs.
+    # - System/Library/Frameworks/Speech.framework
+    - System/Library/Frameworks/FoundationModels.framework
+  kexts: []
+  input_methods: []
+  coreservices:
+    - System/Library/CoreServices/Siri.app
+    - System/Library/CoreServices/Siri.bundle
+  assets:
+    - com_apple_MobileAsset_UAF_FM_GenerativeModels
+    - com_apple_MobileAsset_UAF_FM_Visual
+    - com_apple_MobileAsset_UAF_FM_Overrides
+    - com_apple_MobileAsset_UAF_Siri_Understanding
+    - com_apple_MobileAsset_UAF_Siri_TextToSpeech
+    - com_apple_MobileAsset_UAF_Siri_PlatformAssets
+    - com_apple_MobileAsset_UAF_Siri_UnderstandingASRHammer
+    - com_apple_MobileAsset_UAF_Handwriting_Synthesis
+    - com_apple_MobileAsset_UAF_SummarizationKitConfiguration
+    - com_apple_MobileAsset_UAF_TKModelMessages
+    - com_apple_MobileAsset_UAF_Speech_AutomaticSpeechRecognition
+    - com_apple_MobileAsset_IntelligentRouting
+    - com_apple_MobileAsset_MacinTalkVoiceAssets
+    - com_apple_MobileAsset_VoiceServices_CombinedVocalizerVoices
+    - com_apple_MobileAsset_VoiceServices_CustomVoice
+    - PreinstalledAssetsV2/RequiredByOs/com_apple_MobileAsset_VoiceTriggerAssetsASMac
+    - PreinstalledAssetsV2/RequiredByOs/com_apple_MobileAsset_VoiceTriggerAssets
+    - PreinstalledAssetsV2/RequiredByOs/com_apple_MobileAsset_VoiceTriggerAssetsStudioDisplay
+    - PreinstalledAssetsV2/RequiredByOs/com_apple_MobileAsset_VoiceTriggerAssetsMac
+    - PreinstalledAssetsV2/RequiredByOs/com_apple_MobileAsset_SpeakerRecognitionASMacAssets
+  launchagent_plists:
+    - com.apple.Siri.agent
+  launchdaemon_plists: []
+  agents:
+    - assistantd
+    - Siri.agent
+    - siriknowledged
+    - siriinferenced
+    - sirittsd
+    - siriactionsd
+    - assistant_cdmd
+    - assistant_service
+    - SiriTTSTrainingAgent
+    #- parsec-fbf
+    #- parsecd
+    #- corespeechd
+    - intelligenceplatformd
+    - intelligenceflowd
+    - intelligencetasksd
+    - intelligencecontextd
+    - generativeexperiencesd
+    - textunderstandingd
+    - voicebankingd
+    - privatecloudcomputed
+    - ModelCatalogAgent
+    # - mlhostd
+    # - mlruntimed
+  daemons:
+    #- com.apple.corespeechd.system
+    - com.apple.modelcatalogd
+    # Removing it here while keeping in background_intelligence creates inconsistent state.
+    # Verified via: plutil -p /System/Library/LaunchDaemons/com.apple.modelmanagerd.plist
+    - com.apple.modelmanagerd
+    - com.apple.assetsubscriptiond
+  pluginkit:
+    # Suppress Siri/AI Settings panel and AI inference extensions via pluginkit only
+    # (not SSV delete — SiriAttentionAndInvocationExtension handles Cmd+Space Spotlight)
+    - com.apple.Siri-Settings.extension
+    - com.apple.siri.OnDeviceAnalytics.SiriAttentionAndInvocationExtension
+    - com.apple.siri.OnDeviceAnalytics.SpeakerIdSamplingExtension
+    - com.apple.siri.SiriPrivateLearningAnalytics.SiriUserSegmentation
+    - com.apple.siri.SiriSuggestionsLightHousePlugin
+    - com.apple.siri.OnDeviceAnalytics.ODDIExperimentationExtension
+    - com.apple.siri.OnDeviceAnalytics.ODDIMetricsExtension
+    - com.apple.siri.metrics.ExperimentationExtension
+    - com.apple.siri.metrics.MetricsExtension
+    - com.apple.siri.AssistantSettingsControls
+  user_containers:
+    - com.apple.Siri
+    - com.apple.siri.parsec
+  user_group_containers:
+    # Safe to remove: group.com.apple.CoreSpeech is the CoreSpeech shared group container (CoreSpeech.framework backing services removed).
+    - group.com.apple.CoreSpeech
+    # Safe to remove: group.com.apple.SiriTTS is the Siri TTS shared group container (sirittsd and SiriTTSTrainingAgent removed).
+    - group.com.apple.SiriTTS
+    # Safe to remove: group.com.apple.siri.ASR.shared is the Siri ASR shared group container.
+    - group.com.apple.siri.ASR.shared
+    # Safe to remove: group.com.apple.siri.GMSSELFIngestor is the Siri GMS self-ingestor shared container (appex removed).
+    - group.com.apple.siri.GMSSELFIngestor
+    # Safe to remove: group.com.apple.siri.referenceResolution is the Siri reference resolution shared container.
+    - group.com.apple.siri.referenceResolution
+    # Safe to remove: group.com.apple.siri.sirisuggestions is the Siri suggestions shared container (suggestd removed).
+    - group.com.apple.siri.sirisuggestions
+    # Safe to remove: group.com.apple.PegasusConfiguration is the parsecd/parsec Siri bag config shared container (com.apple.siri.parsec user_container removed).
+    - group.com.apple.PegasusConfiguration
+  user_prefs:
+    - com.apple.Siri
+    - com.apple.assistant.backedup
+    - com.apple.assistant.support
+  user_caches:
+    - com.apple.Siri
+
+# ------------------------------------------------------------------------------
+# ICLOUD (Drive, Photos, Keychain Sync, iCloud+, Account)
+# otool evidence: Finder links CloudDocs.framework, iCloudQuota.framework,
+#   iCloudQuotaUI.framework, AOSAccounts.framework — frameworks stay on disk.
+# ------------------------------------------------------------------------------
+icloud:
+  description: iCloud Drive sync, Photos sync, Keychain sync, iCloud account
+  apps: []
+  helpers:
+    # Safe to remove: iCloud Drive.app is the menubar helper embedded in iCloudDriveCore.framework. Verified via otool -L Finder: Finder links CloudDocs.framework (not in removal list), not iCloudDriveCore. No other kept binary links iCloudDriveCore.framework.
+    - System/Library/PrivateFrameworks/iCloudDriveCore.framework/Versions/A/Resources/iCloud Drive.app
+  xpc: []
+  prefpanes:
+    # Safe to remove: AppleIDPrefPane is the System Settings UI pane for Apple ID sign-in. All features consuming Apple ID (iCloud, App Store, Messages, FaceTime, Find My) are removed in this manifest. Local user login does not require Apple ID.
+    - AppleIDPrefPane.prefPane
+    # Safe to remove: InternetAccounts.prefPane is the UI settings pane for Mail/Calendar/Contacts account configuration. All dependent apps (Mail, Calendar, Contacts) are removed in this manifest.
+    - InternetAccounts.prefPane
+  appex:
+    # Safe to remove: AppleIDSettings.appex is the Settings UI extension for Apple ID. Only invoked when AppleIDPrefPane is present, which is also being removed.
+    - AppleIDSettings.appex
+    # Safe to remove: InternetAccountsSettingsExtension.appex is the Settings UI extension for internet account management. All account-consuming apps (Mail, Calendar, Contacts) are removed in this manifest.
+    - InternetAccountsSettingsExtension.appex
+    # Safe to remove: FollowUpSettingsExtension.appex is also listed in the follow_up feature (line 1842). It is a Settings UI extension for CoreFollowUp iCloud notifications. No kept binary depends on this extension.
+    - FollowUpSettingsExtension.appex
+    # Safe to remove: CloudWorker.appex is an ExtensionKit background worker for CloudKit tasks. Verified present at /System/Library/ExtensionKit/Extensions/CloudWorker.appex. No kept system binary depends on it.
+    - CloudWorker.appex
+    # Safe to remove: BiomeSELFIngestor.appex is also listed in the telemetry feature (line 1228). It is a Biome data upload worker for iCloud analytics. No kept binary requires it.
+    - BiomeSELFIngestor.appex
+    # Safe to remove: AccountsUISettingsAppIntents.appex is a Settings App Intents extension for the accounts UI. Verified at /System/Library/ExtensionKit/Extensions/AccountsUISettingsAppIntents.appex. No kept binary depends on it.
+    - AccountsUISettingsAppIntents.appex
+  mdimporters: []
+  loctables: []
+  frameworks:
+    # Safe to remove: CloudKitDaemon.framework contains cloudd and ckdiscretionaryd, both being disabled. Verified via otool -L on the cloudd binary: only links public CloudKit.framework (stays) and CloudAssetsDaemon.framework. No kept binary links CloudKitDaemon.framework.
+    - System/Library/PrivateFrameworks/CloudKitDaemon.framework
+    # Safe to remove: CloudKitCode.framework is the internal RPC implementation layer for CloudKit used exclusively by cloudd (being removed). No kept binary was found linking this framework.
+    - System/Library/PrivateFrameworks/CloudKitCode.framework
+    # Safe to remove: CloudKitCodeProtobuf.framework is the protobuf serialization layer for CloudKitCode, used exclusively within the cloudd stack. No kept binary links it.
+    - System/Library/PrivateFrameworks/CloudKitCodeProtobuf.framework
+    # Safe to remove: CloudKitDistributedSync.framework supports collaborative document syncing. All apps using it (Notes, etc.) are removed in this manifest. No kept binary links it.
+    - System/Library/PrivateFrameworks/CloudKitDistributedSync.framework
+    # Safe to remove: iCloudDriveCore.framework hosts the bird daemon binary. Verified via otool: Finder links CloudDocs.framework (stays), not iCloudDriveCore. No other kept binary links iCloudDriveCore.
+    - System/Library/PrivateFrameworks/iCloudDriveCore.framework
+    # Safe to remove: AOSAccountsLite.framework is the lightweight iCloud account bootstrap layer, distinct from AOSAccounts.framework (stays — Finder hard-links it). Verified: separate framework directories confirmed via ls.
+    - System/Library/PrivateFrameworks/AOSAccountsLite.framework
+    # Safe to remove: AppleAccountUI.framework is the UI-only component for Apple ID sign-in sheets. The backing daemon (appleaccountd) does not link this framework. No kept binary links AppleAccountUI.
+    - System/Library/PrivateFrameworks/AppleAccountUI.framework
+    # Not very Safe to remove: AuthKit.framework provides Apple ID token/auth primitives. Verified via otool -L /usr/libexec/secd: secd weak-links it (weak flag present in load command), meaning secd handles its absence gracefully and local Keychain remains fully functional. No other kept critical binary hard-links AuthKit.
+    #- System/Library/PrivateFrameworks/AuthKit.framework
+    # Safe to remove: AuthKitUI.framework is the UI layer for AuthKit authentication dialogs. No kept binary was found linking it via otool scan.
+    - System/Library/PrivateFrameworks/AuthKitUI.framework
+    # Safe to remove: CoreCDP.framework implements the iCloud Keychain circle-of-trust. Verified via otool -L /usr/libexec/secd: secd weak-links it (weak flag present), so local Keychain continues to function without iCloud sync. cdpd (the only daemon using it directly) is being removed.
+    - System/Library/PrivateFrameworks/CoreCDP.framework
+    # Safe to remove: ProtectedCloudStorage.framework hosts ProtectedCloudKeySyncing, which syncs iCloud Keychain escrow keys. Its sole agent (protectedcloudstorage.protectedcloudkeysyncing) is being removed. Verified via plutil -p: only MachServices are iCloud-specific alloy channels.
+    - System/Library/PrivateFrameworks/ProtectedCloudStorage.framework
+  kexts: []
+  input_methods: []
+  coreservices:
+    # Safe to remove: iCloud.app is the CoreServices iCloud account status menu app. Verified: exists at /System/Library/CoreServices/iCloud.app. No kept system binary depends on it.
+    - System/Library/CoreServices/iCloud.app
+    # Safe to remove: iCloud+.app is the CoreServices iCloud+ subscription management app. Verified: exists at /System/Library/CoreServices/iCloud+.app. No kept system binary depends on it.
+    - System/Library/CoreServices/iCloud+.app
+  assets: []
+  launchagent_plists: []
+  launchdaemon_plists: []
+  agents:
+    # Safe to remove: cloudd (user agent) is the user-session CloudKit daemon. Verified via plutil -p: MachServices are com.apple.cloudd (user) and com.apple.bird.push — both iCloud-specific. No kept non-iCloud agent depends on these endpoints.
+    - cloudd
+    # Safe to remove: cloudphotod syncs the Photos library to iCloud. Also listed in the photos feature. Verified via plutil -p: all MachServices (com.apple.cloudphotod.*) are iCloud Photos-specific.
+    - cloudphotod
+    # Safe to remove: iCloudNotificationAgent manages iCloud push notification delivery. Verified via plutil -p: binary at iCloudNotification.framework/iCloudNotificationAgent; MachServices are com.apple.ind.xpc and com.apple.ind.aps — iCloud Notification Daemon only.
+    - iCloudNotificationAgent
+    # Safe to remove: icloudmailagent handles iCloud Mail push credentials. Verified via plutil -p: triggered only on AppleAccount add/delete events; MachServices are com.apple.aps.icloud.mcc and com.apple.icloudmailagent.secret.xpc. Mail is being removed in this manifest.
+    - icloudmailagent
+    # Safe to remove: findmydevice-user-agent is the user-session helper for Find My Device. Also covered in the find_my feature. Verified via plutil -p: sole MachService is com.apple.icloud.findmydeviced.findmydevice-user-agent.
+    - icloud.findmydeviced.findmydevice-user-agent
+    # Safe to remove: bird is the iCloud Drive sync daemon. Verified via plutil -p: binary at iCloudDriveCore.framework/Support/bird; MachServices are com.apple.bird.* (iCloud Drive-specific). Finder links CloudDocs.framework (stays), not bird.
+    - bird
+    # Safe to remove: itunescloudd manages iTunes/Apple Music cloud library sync. Verified via plutil -p: binary at iTunesCloud.framework/Support/itunescloudd. Music and TV apps are removed in this manifest.
+    - itunescloudd
+    # Safe to remove: syncdefaultsd is the iCloud Key-Value Store daemon (NSUbiquitousKeyValueStore). Verified via plutil -p: MachServices are com.apple.kvsd and com.apple.aps.kvsd. Grep of all LaunchAgent/LaunchDaemon plists found zero references to com.apple.kvsd outside syncdefaultsd's own plist.
+    - syncdefaultsd
+    # Safe to remove: cmfsyncagent syncs the Communications Message Filter (iMessage spam filter) via iCloud KVS. Verified via otool -L on CMFSyncAgent binary: links IMFoundation.framework and CommunicationsFilter.framework — both from features being removed. No kept binary uses com.apple.cmfsyncagent.auth.
+    - cmfsyncagent
+    # Safe to remove: cloudsettingssyncagent (binary: /System/Library/CoreServices/CloudSettingsSyncAgent) syncs System Preferences to iCloud KVS. Verified via plutil -p /System/Library/LaunchAgents/com.apple.CloudSettingsSyncAgent.plist: all LaunchEvents are com.apple.kvs.store-did-change.* notifications. With syncdefaultsd (KVS daemon) also removed, this agent performs no useful work.
+    - cloudsettingssyncagent
+    # Safe to remove: icloud.searchpartyuseragent is the user-session Find My network beaconing agent. Also listed in the find_my feature. Verified via plutil -p: all MachServices are searchparty/findmy-specific alloy channels.
+    - icloud.searchpartyuseragent
+    # Safe to remove: icloudwebd handles iCloud web push notifications. Verified via plutil -p: binary at /usr/libexec/icloudwebd; MachServices are com.apple.icloudwebd and com.apple.private.alloy.icloudweb-idswake — iCloud web-only.
+    - icloudwebd
+    # Safe to remove: iCloudUserNotifications displays iCloud account alert notifications. Verified via plutil -p: binary inside AOSAccounts.framework (framework stays on disk; only the daemon is disabled); MachService is com.apple.icloudusernotification.agent — iCloud-specific.
+    - iCloudUserNotifications
+    # Safe to remove: ckdiscretionaryd is the CloudKit discretionary sync scheduler. Verified via plutil -p: binary at CloudKitDaemon.framework/Support/ckdiscretionaryd; sole MachService is com.apple.ckdiscretionaryd. CloudKitDaemon.framework is being removed.
+    - ckdiscretionaryd
+    # Safe to remove: SecureBackupDaemon (com.apple.sbd) backs up iCloud Keychain escrow records. Verified via plutil -p: binary at CloudServices.framework/Helpers/com.apple.sbd. CloudServices.framework stays on disk (secd hard-links it); secd only posts com.apple.security.itembackup to trigger sbd — with sbd disabled secd continues operating and local Keychain is unaffected.
+    - SecureBackupDaemon
+    # Safe to remove: EscrowSecurityAlert displays UI alerts when iCloud Keychain escrow changes. Verified via plutil -p: triggered only by com.apple.EscrowSecurityAlert.* Darwin notifications, which are only posted by SecureBackupDaemon (being removed).
+    - EscrowSecurityAlert
+    # Safe to remove: AOSHeartbeat sends periodic Apple Online Services heartbeat pings. Verified via plutil -p: binary in AOSKit.framework/Helpers/AOSHeartbeat.app; no MachServices registered; triggered only by daily XPC activity. No kept system binary depends on it.
+    - AOSHeartbeat
+    # Safe to remove: AOSPushRelay relays Apple Push Notifications for AOS/iCloud account services. Verified via plutil -p: binary in AOSKit.framework/Helpers/AOSPushRelay.app; MachServices are com.apple.AOSPushRelay.* — AOS account-specific. The core APNs daemon (apsd) does not reference AOSPushRelay; verified via plutil -p /System/Library/LaunchDaemons/com.apple.apsd.plist showing no cross-reference.
+    - AOSPushRelay
+    # Safe to remove: appleaccountd manages Apple ID account identity XPC services. Verified via plutil -p: MachServices are com.apple.aa.*. All consumers (App Store, Messages, FaceTime, iCloud) are removed in this manifest. Grep of all LaunchAgent/LaunchDaemon plists found zero references to com.apple.aa.daemon.xpc outside appleaccountd's own plist.
+    - appleaccountd
+    # Safe to remove: appleidsetupd handles Apple ID setup and repair during OS onboarding. Verified via plutil -p: triggered only by MDM device-posture changes; MachServices are com.apple.appleidsetup.xpc and repair variants. MDM (enterprise feature) is also removed in this manifest.
+    - appleidsetupd
+    # Safe to remove: akd is the AuthKit daemon providing Apple ID token, anisette, and Sign in with Apple XPC services. Verified via plutil -p: MachServices are com.apple.ak.auth.xpc, com.apple.ak.anisette.xpc, etc. All consumers (App Store, iCloud, Messages) are removed. Grep of all LaunchAgent/LaunchDaemon plists found zero references to com.apple.ak.* MachServices outside akd's own plist.
+    - akd
+    # Safe to remove: cdpd is the CoreCDP daemon managing the iCloud Keychain circle-of-trust state machine. Verified via plutil -p: sole MachService is com.apple.cdp.daemon. With CoreCDP.framework removed, secd's weak link resolves to NULL and local Keychain remains fully operational.
+    - cdpd
+    # Safe to remove: coreidvd provides Apple ID web-presentment (WebAuthn/passkey) XPC for iCloud. Verified via plutil -p: MachService is com.apple.coreidvd.web-presentment.xpc; otool -L shows it links CoreIDV/CoreIDCred frameworks and CloudKit.framework. No kept binary depends on this XPC endpoint.
+    - coreidvd
+    # Safe to remove: protectedcloudstorage.protectedcloudkeysyncing rolls and syncs iCloud Keychain escrow keys. Verified via plutil -p: binary at ProtectedCloudStorage.framework/Helpers/ProtectedCloudKeySyncing; MachServices are iCloud-specific alloy PCS channels. ProtectedCloudStorage.framework is being removed.
+    - protectedcloudstorage.protectedcloudkeysyncing
+    # Safe to remove: FeatureAccessAgent manages iCloud+ feature entitlement checks. Verified via plutil -p: binary at CloudSubscriptionFeatures.framework/FeatureAccessAgent; sole MachService is com.apple.ind.cloudfeatures. No kept system binary depends on iCloud+ feature gating.
+    - FeatureAccessAgent
+  daemons:
+    # Safe to remove: com.apple.cloudd is the system-level CloudKit daemon. Verified via plutil -p: binary at CloudKitDaemon.framework/Support/cloudd --system; MachServices are com.apple.cloudd.system and com.apple.cloudasset.cloudd.system. CloudKitDaemon.framework is being removed. No kept system daemon references these MachServices.
+    - com.apple.cloudd
+    # Safe to remove: com.apple.icloud.searchpartyd is the system-level Find My network search daemon. Also listed in the find_my feature. Verified via plutil -p: binary at /usr/libexec/searchpartyd; all MachServices are searchparty/findmy-specific.
+    - com.apple.icloud.searchpartyd
+    # Safe to remove: com.apple.icloud.findmydeviced is the system-level Find My Device daemon. Also listed in the find_my feature. Verified via plutil -p: binary at /usr/libexec/findmydeviced; all MachServices are findmydeviced-specific.
+    - com.apple.icloud.findmydeviced
+    # Safe to remove: com.apple.adid is the Advertising ID daemon for iCloud/Apple services ad attribution. Verified via plutil -p: binary at CoreADI.framework/adid, runs as _fpsd user; sole MachService is com.apple.adid. No kept non-advertising system binary depends on it.
+    - com.apple.adid
+  pluginkit:
+    - com.apple.Internet-Accounts-Settings.extension
+    - com.apple.Passwords-Settings.extension
+    - com.apple.systempreferences.AppleIDSettings
+    - com.apple.AccountsUISettings.AppIntents
+  user_containers:
+    # Safe to remove: com.apple.bird is the iCloud Drive sandbox container for the bird daemon (being removed).
+    - com.apple.bird
+    # Safe to remove: com.apple.CloudDocs.container-encryptionkeys holds iCloud Drive file encryption keys. Only accessed by bird (being removed).
+    - com.apple.CloudDocs.container-encryptionkeys
+    # Safe to remove: com.apple.icloud.remoteui is the sandbox container for the iCloud remote UI helper (being removed).
+    - com.apple.icloud.remoteui
+  user_group_containers:
+    # Safe to remove: group.com.apple.clouddocs is the shared group container for iCloud Documents sync. Only populated by bird and iCloud Drive (both being removed).
+    - group.com.apple.clouddocs
+    # Safe to remove: com.apple.bird is the iCloud Drive per-user group container. bird daemon is being removed.
+    - com.apple.bird
+    # Safe to remove: group.com.apple.iCloudDrive is the iCloud Drive shared data container. Only populated by bird (being removed).
+    - group.com.apple.iCloudDrive
+    # Safe to remove: group.com.apple.icloud.searchpartyuseragent is the Find My / Search Party user agent shared container. Both icloud.searchpartyuseragent and icloud.searchpartyd are being removed.
+    - group.com.apple.icloud.searchpartyuseragent
+    # Safe to remove: group.com.apple.FileProvider.DomainCaching caches iCloud Drive FileProvider domain metadata. iCloudDriveCore.framework (being removed) is its sole writer.
+    - group.com.apple.FileProvider.DomainCaching
+  user_prefs:
+    # Safe to remove: com.apple.icloud.fmfd is the Find My Device daemon preference file. Its daemon is being removed.
+    - com.apple.icloud.fmfd
+    # Safe to remove: MobileMeAccounts stores the iCloud account configuration (Apple ID, tokens). With appleaccountd and akd removed, this file is unused.
+    - MobileMeAccounts
+    # Safe to remove: com.apple.cloudkit.sharedd stores CloudKit sharing daemon preferences. Its daemon (cloudd) is being removed.
+    - com.apple.cloudkit.sharedd
+  user_caches:
+    # Safe to remove: com.apple.bird is the iCloud Drive cache directory for the bird daemon (being removed).
+    - com.apple.bird
+
+# ------------------------------------------------------------------------------
+# MAIL
+# ------------------------------------------------------------------------------
+mail:
+  description: Apple Mail app and mail sync stack
+  apps:
+    - System/Applications/Mail.app
+  helpers: []
+  xpc: []
+  prefpanes: []
+  appex:
+    - MacMailSearchLogProcessor.appex
+  mdimporters:
+    - Mail.mdimporter
+  loctables: []
+  frameworks:
+    - System/Library/PrivateFrameworks/EmailDaemon.framework
+    - System/Library/PrivateFrameworks/EmailCore.framework
+    - System/Library/Frameworks/MailKit.framework
+    - System/Library/Frameworks/Message.framework
+  kexts: []
+  input_methods: []
+  coreservices: []
+  assets: []
+  launchagent_plists:
+    - com.apple.email.maild
+    - com.apple.mdworker.mail
+  launchdaemon_plists: []
+  agents:
+    - email.maild
+    - mdworker.mail
+  daemons: []
+  pluginkit:
+    - com.apple.systempreferences.MailSettings
+  user_containers:
+    - com.apple.mail
+  user_group_containers:
+    - group.com.apple.mail
+  user_prefs:
+    - com.apple.mail
+    - com.apple.MailMigrationAgent
+  user_caches:
+    - com.apple.mail
+
+# ------------------------------------------------------------------------------
+# MESSAGES & FACETIME
+# ControlCenter links IMCore.framework — framework stays, backing processes removed.
+# ------------------------------------------------------------------------------
+messages_facetime:
+  description: iMessage, SMS relay, FaceTime video/audio calling
+  apps:
+    # Safe to remove: Messages.app is the iMessage/SMS client. No kept system binary depends on it.
+    - System/Applications/Messages.app
+    # Safe to remove: FaceTime.app is the video/audio calling client. No kept system binary depends on it.
+    - System/Applications/FaceTime.app
+  helpers:
+    # Safe to remove: IMAutomaticHistoryDeletionAgent.app is the iMessage auto-delete helper embedded in IMDPersistence.framework (being removed). No kept binary depends on it.
+    - System/Library/PrivateFrameworks/IMDPersistence.framework/IMAutomaticHistoryDeletionAgent.app
+    # Safe to remove: IMTransferAgent.app is the iMessage file-transfer helper embedded in IMTransferServices.framework (being removed). No kept binary depends on it.
+    - System/Library/PrivateFrameworks/IMTransferServices.framework/IMTransferAgent.app
+  xpc: []
+  prefpanes: []
+  appex:
+    # Safe to remove: MessagesAnalyticsWorker.appex is an analytics upload worker for Messages. Verified at /System/Library/ExtensionKit/Extensions/MessagesAnalyticsWorker.appex. No kept binary depends on it.
+    - MessagesAnalyticsWorker.appex
+    # Safe to remove: FaceTimeNotificationExtension.appex handles FaceTime push notification display. Verified at /System/Library/ExtensionKit/Extensions/FaceTimeNotificationExtension.appex. No kept binary depends on it.
+    - FaceTimeNotificationExtension.appex
+    # Safe to remove: ChallengesMessageExtension.appex is also listed in the game_center feature. Both game_center and messages_facetime are being removed. No kept binary depends on it.
+    - ChallengesMessageExtension.appex
+  mdimporters: []
+  loctables:
+    # Safe to remove: FaceTime.loctable provides ControlCenter UI strings for the FaceTime module. ControlCenter links IMCore.framework (stays on disk per manifest header), not this loctable file. Removing it only disables the FaceTime tile label in ControlCenter.
+    - FaceTime.loctable
+  frameworks:
+    # Safe to remove: IMDPersistence.framework provides iMessage chat history persistence. Verified via broad otool scan of /System/Library, /usr/libexec, /usr/lib: all hard-linkers (iMessage.imservice, SMS.imservice, imagent, etc.) are within the iMessage/FaceTime stack being removed. No kept binary outside that stack hard-links it.
+    - System/Library/PrivateFrameworks/IMDPersistence.framework
+    # Safe to remove: IMTransferServices.framework provides iMessage file/attachment transfer. Verified via broad otool scan: only linked by iMessage stack binaries, all of which are being removed.
+    - System/Library/PrivateFrameworks/IMTransferServices.framework
+    # CRITICAL: IMFoundation.framework is hard-linked (no weak flag) by rapportd (/usr/libexec/rapportd), which is kept in the continuity feature (com.apple.rapportd). Verified via otool -L /usr/libexec/rapportd: IMFoundation listed without weak flag. Removing this framework causes dyld to fail resolving rapportd's load commands at boot → rapportd crashes → AirDrop, Handoff, Universal Clipboard, and Universal Control all stop working. The debloat.sh verify scan does not catch this: rapportd is not in the KEPT_BINARIES list (debloat.sh line ~545).
+    # - System/Library/PrivateFrameworks/IMFoundation.framework
+    # Safe to remove: FaceTimeMessageStore.framework stores FaceTime video message metadata. Verified via plutil -p: the facetimemessagestored binary lives inside this framework and is being removed. No kept binary outside the FaceTime stack hard-links it.
+    - System/Library/PrivateFrameworks/FaceTimeMessageStore.framework
+    # Safe to remove: CallHistory.framework stores call log records. Verified via broad otool scan: only linked by callhistoryd, CallHistorySyncHelper, CallHistoryPluginHelper, and telephony stack binaries — all being removed. bookassetd (Books) hard-links it but bookassetd is in notes_books (also being removed).
+    - System/Library/PrivateFrameworks/CallHistory.framework
+    # Safe to remove: CallHistoryToolKit.framework provides UI toolkit for call history display. Only linked by the telephony/FaceTime stack (all being removed). No kept binary links it.
+    - System/Library/PrivateFrameworks/CallHistoryToolKit.framework
+    # Safe to remove: CallIntelligence.framework provides on-device call transcription/labelling. Verified via plutil -p: callintelligenced (its sole daemon) is being removed. No kept binary outside the call stack links it.
+    - System/Library/PrivateFrameworks/CallIntelligence.framework
+    # Safe to remove: TelephonyMessagingKit.framework is the public telephony messaging API. Only linked by the telephony/FaceTime stack (all being removed). No kept binary links it.
+    #- System/Library/Frameworks/TelephonyMessagingKit.framework
+    # Safe to remove: InstantMessage.framework is the public iMessage/Bonjour IM API. Verified via broad otool scan: all hard-linkers (iMessage.imservice, FaceTime.imservice, MessagesDataclassOwner.bundle, etc.) are within the iMessage/accounts stack being removed in this manifest.
+    - System/Library/Frameworks/InstantMessage.framework
+    # NOT Safe to remove: CoreTelephony.framework provides cellular/telephony primitives on Mac. Verified via broad otool scan: nearbyd hard-links it but nearbyd is disabled as com.apple.nearbyd in the continuity feature (also being removed). All other hard-linkers (identityservicesd, itunescloudd, bookassetd, assistantd) are in features being removed. Kept binaries only weak-link CoreTelephony (weak flag confirmed via otool).
+    # - System/Library/Frameworks/CoreTelephony.framework
+    # CRITICAL: CallKit.framework is hard-linked (no weak flag) by mediaremoted and mediaremoteagent (/System/Library/PrivateFrameworks/MediaRemote.framework/Support/), verified via otool -L and nm showing CXCall/CXCallObserver ObjC class imports. The mediaremoteagent LaunchAgent plist (com.apple.mediaremoteagent) has a LaunchEvent on com.apple.callkit.callcontroller.shouldconnect (verified via plutil -p). Removing this framework causes dyld to fail resolving MediaRemote binaries at boot → hardware media keys (play/pause, volume, Now Playing) stop working. Neither mediaremoted nor mediaremoteagent are in the debloat.sh KEPT_BINARIES verify scan (debloat.sh line ~545).
+    # - System/Library/Frameworks/CallKit.framework
+    # Safe to remove: LiveCommunicationKit.framework is the public VoIP/live communication API. Verified via broad otool scan: only hard-linked by VoIP stack binaries (LiveCommunication*.xpc, telephony stack) — all being removed. No kept binary outside that stack hard-links it.
+    - System/Library/Frameworks/LiveCommunicationKit.framework
+  kexts: []
+  input_methods: []
+  coreservices: []
+  assets: []
+  launchagent_plists:
+    # Safe to remove: com.apple.facetimemessagestored plist file on SSV. Its daemon is being disabled. Verified: plist exists at /System/Library/LaunchAgents/com.apple.facetimemessagestored.plist.
+    - com.apple.facetimemessagestored
+    # Safe to remove: com.apple.screensharing.MessagesAgent plist file on SSV. Its binary (AppleVNCServer) is in the remote_management feature, which is also being removed (screensharing.agent, line ~1487). Verified: plist exists at /System/Library/LaunchAgents/com.apple.screensharing.MessagesAgent.plist.
+    - com.apple.screensharing.MessagesAgent
+  launchdaemon_plists: []
+  agents:
+    # Safe to remove: imagent is the iMessage delivery agent (IMCore.framework/imagent.app). Verified via plutil -p: MachServices are com.apple.imagent.*, com.apple.madrid-idswake, com.apple.corespotlight.daemon.messages — all iMessage-specific.
+    - imagent
+    # Safe to remove: imautomatichistorydeletionagent deletes old iMessage history. Verified via plutil -p: binary at IMDPersistence.framework/IMAutomaticHistoryDeletionAgent.app (being removed). MachService is com.apple.imautomatichistorydeletionagent.
+    - imautomatichistorydeletionagent
+    # Safe to remove: facetimemessagestored stores FaceTime video messages. Verified via plutil -p: binary at FaceTimeMessageStore.framework/facetimemessagestored (framework being removed); MachServices are com.apple.facetimemessagestored.* — FaceTime-specific.
+    - facetimemessagestored
+    # Safe to remove: securemessagingagent handles end-to-end encrypted iMessage key registration. Verified via plutil -p: binary at SecureMessaging.framework/SecureMessagingAgent; MachServices are com.apple.securemessagingagent.* — iMessage-specific.
+    - securemessagingagent
+    # Safe to remove: identityservicesd is the IDS (Identity Services) daemon routing iMessage/FaceTime delivery. Verified via plutil -p: binary at IDS.framework/identityservicesd.app; MachServices are com.apple.identityservicesd.* — IDS/iMessage-specific. SetupAssistantPlugins/IdentityServices.icdplugin links IMFoundation but IMFoundation is being kept (CRITICAL comment above).
+    - identityservicesd
+    # Safe to remove: screensharing.MessagesAgent is the AppleVNCServer instance registered for Messages screen sharing. Verified via plutil -p: binary is /System/Library/CoreServices/RemoteManagement/AppleVNCServer.bundle/Contents/MacOS/AppleVNCServer, which is part of remote_management (also being removed). Sole MachService is com.apple.screensharing.MessagesAgent.
+    - screensharing.MessagesAgent
+    # Safe to remove: telephonyutilities.callservicesd is the CallKit call controller host. Verified via plutil -p: binary at TelephonyUtilities.framework/callservicesd; MachServices are com.apple.callkit.* and com.apple.telephonyutilities.*. With CallKit.framework kept (CRITICAL above), these MachServices simply go unanswered — no kept binary blocks on them.
+    - telephonyutilities.callservicesd
+    # Safe to remove: callhistoryd maintains the call history database. Verified via plutil -p: binary at CallHistory.framework/Support/callhistoryd (framework being removed); MachServices are com.apple.callhistoryd.service and com.apple.conversation.history.
+    - callhistoryd
+    # Safe to remove: callintelligenced provides on-device call transcription. Verified via plutil -p: binary at CallIntelligence.framework/callintelligenced (framework being removed); sole MachService is com.apple.callintelligenced.service.
+    - callintelligenced
+    # Safe to remove: CallHistorySyncHelper syncs call history to iCloud via IDS. Verified via plutil -p: binary at CallHistory.framework/Support/CallHistorySyncHelper (framework being removed); MachServices are com.apple.CallHistorySyncHelper and com.apple.CallHistorySyncHelper.aps.
+    - CallHistorySyncHelper
+    # Safe to remove: CallHistoryPluginHelper is a plugin host for call history extensions. Verified via plutil -p: binary at CallHistory.framework/Support/CallHistoryPluginHelper (framework being removed); sole MachService is com.apple.CallHistoryPluginHelper.
+    - CallHistoryPluginHelper
+  daemons: []
+  pluginkit:
+    - com.apple.FaceTime.FaceTimeNotificationExtension
+    - com.apple.poirot.MessagesAnalyticsWorker
+  user_containers:
+    # Safe to remove: com.apple.Messages is the Messages.app sandbox container (app being removed).
+    - com.apple.Messages
+    # Safe to remove: com.apple.FaceTime is the FaceTime.app sandbox container (app being removed).
+    - com.apple.FaceTime
+    # Safe to remove: com.apple.iChat is the legacy iChat/Messages container (app being removed).
+    - com.apple.iChat
+  user_group_containers:
+    # Safe to remove: group.com.apple.telephonyutilities.callservicesd is the shared group container for the CallKit call services daemon (being removed).
+    - group.com.apple.telephonyutilities.callservicesd
+  user_prefs:
+    # Safe to remove: com.apple.Messages stores Messages app preferences (app being removed).
+    - com.apple.Messages
+    # Safe to remove: com.apple.iChat stores legacy iChat preferences (app being removed).
+    - com.apple.iChat
+    # Safe to remove: com.apple.FaceTime stores FaceTime app preferences (app being removed).
+    - com.apple.FaceTime
+    # Safe to remove: com.apple.imservice.aim stores AIM/iMessage service preferences. Only used by imagent (being removed).
+    - com.apple.imservice.aim
+  user_caches:
+    # Safe to remove: com.apple.Messages is the Messages app cache directory (app being removed).
+    - com.apple.Messages
+    # Safe to remove: com.apple.FaceTime is the FaceTime app cache directory (app being removed).
+    - com.apple.FaceTime
+
+# ------------------------------------------------------------------------------
+# CALENDAR & REMINDERS
+# ------------------------------------------------------------------------------
+calendar_reminders:
+  description: Calendar, Reminders, event sync
+  apps:
+    - System/Applications/Calendar.app
+    - System/Applications/Reminders.app
+  helpers: []
+  xpc: []
+  prefpanes: []
+  appex:
+    - CalendarThumbnailExtension.appex
+    - EventKitUIRemoteUIExtension.appex
+  mdimporters:
+    - iCal.mdimporter
+  loctables: []
+  frameworks:
+    - System/Library/PrivateFrameworks/CalendarDaemon.framework
+    - System/Library/PrivateFrameworks/CalendarDatabase.framework
+    - System/Library/PrivateFrameworks/CalendarFoundation.framework
+    - System/Library/PrivateFrameworks/CalendarUI.framework
+    - System/Library/PrivateFrameworks/CalendarUIKitInternal.framework
+    - System/Library/PrivateFrameworks/CalendarMigration.framework
+    - System/Library/PrivateFrameworks/CalendarNotification.framework
+    - System/Library/PrivateFrameworks/CalendarIntegrationSupport.framework
+    - System/Library/PrivateFrameworks/CalendarLink.framework
+    - System/Library/PrivateFrameworks/CalendarDraw.framework
+    - System/Library/PrivateFrameworks/CalendarWeatherKit.framework
+    - System/Library/PrivateFrameworks/CalendarWidget.framework
+    - System/Library/Frameworks/EventKit.framework
+    - System/Library/Frameworks/CalendarStore.framework
+  kexts: []
+  input_methods: []
+  coreservices: []
+  assets: []
+  launchagent_plists:
+    - com.apple.calendar.CalendarAgentBookmarkMigrationService
+  launchdaemon_plists: []
+  agents:
+    - calaccessd
+    - remindd
+    - calendar.CalendarAgentBookmarkMigrationService
+  daemons: []
+  pluginkit:
+    - com.apple.calendar.EventKitUIRemoteUIExtension
+  user_containers:
+    - com.apple.iCal
+    - com.apple.reminders
+  user_group_containers:
+    - group.com.apple.calendar
+    - group.com.apple.reminders
+  user_prefs:
+    - com.apple.iCal
+    - com.apple.reminders
+  user_caches:
+    - com.apple.iCal
+    - com.apple.reminders
+
+# ------------------------------------------------------------------------------
+# CONTACTS & ADDRESS BOOK
+# Finder links Contacts.framework — framework stays on disk.
+# ------------------------------------------------------------------------------
+contacts:
+  description: Contacts app, address book sync, vCard Spotlight indexing
+  apps:
+    - System/Applications/Contacts.app
+  helpers:
+    - System/Library/Frameworks/AddressBook.framework/Helpers/AddressBookSync.app
+    - System/Library/Frameworks/AddressBook.framework/Versions/A/Helpers/ABAssistantService.app
+    - System/Library/Frameworks/AddressBook.framework/Versions/A/Helpers/AddressBookManager.app
+    - System/Library/Frameworks/AddressBook.framework/Versions/A/Helpers/AddressBookSourceSync.app
+    #- System/Library/Frameworks/SyncServices.framework/Versions/A/Resources/SyncServer.app
+  xpc: []
+  prefpanes: []
+  appex:
+    - ContactThumbnailExtension.appex
+    - ContactsAppIntentsExtension.appex
+  mdimporters:
+    - vCard.mdimporter
+  loctables: []
+  frameworks:
+    # - System/Library/PrivateFrameworks/ContactsDonation.framework
+    - System/Library/PrivateFrameworks/AddressBookAutocomplete.framework
+    # - System/Library/PrivateFrameworks/AddressBookCore.framework
+    # - System/Library/Frameworks/AddressBook.framework
+    #- System/Library/Frameworks/SyncServices.framework
+    - System/Library/Frameworks/ContactProvider.framework
+  kexts: []
+  input_methods: []
+  coreservices:
+    - System/Library/CoreServices/PeopleMessageService.app
+    - System/Library/CoreServices/PeopleViewService.app
+    - System/Library/CoreServices/AddressBookUrlForwarder.app
+  assets: []
+  launchagent_plists:
+    - com.apple.contacts.donation-agent
+    - com.apple.contacts.postersyncd
+    - com.apple.contactsd
+  launchdaemon_plists: []
+  agents:
+    - contactsd
+    - contacts.donation-agent
+    - contacts.postersyncd
+    - AddressBook.SourceSync
+    - AddressBook.AssistantService
+    - AddressBook.abd
+    #- communicationtrustd
+    - peopled
+  daemons: []
+  pluginkit:
+    - com.apple.contacts.ContactsAppIntentsExtension
+  user_containers:
+    - com.apple.AddressBook
+  user_group_containers:
+    # Safe to remove: group.com.apple.contacts is the Contacts app shared group container.
+    - group.com.apple.contacts
+    # Safe to remove: group.com.apple.people is the People service shared group container (peopled being removed).
+    - group.com.apple.people
+  user_prefs:
+    - com.apple.AddressBook
+    - com.apple.addressbook.shared
+  user_caches:
+    - com.apple.AddressBook
+
+# ------------------------------------------------------------------------------
+# MAPS & NAVIGATION
+# ------------------------------------------------------------------------------
+maps:
+  description: Maps app, navigation, geo sync
+  apps:
+    - System/Applications/Maps.app
+  helpers: []
+  xpc: []
+  prefpanes: []
+  appex: []
+  mdimporters: []
+  loctables: []
+  frameworks:
+    - System/Library/PrivateFrameworks/MapsSync.framework
+    #- System/Library/PrivateFrameworks/GeoAnalytics.framework
+    #- System/Library/PrivateFrameworks/GeoServices.framework
+    - System/Library/Frameworks/MapKit.framework
+    #- System/Library/Frameworks/GeoToolbox.framework
+    #- System/Library/Frameworks/_GeoToolbox_AppIntents.framework
+  kexts: []
+  input_methods: []
+  coreservices:
+    - System/Library/CoreServices/MapsSuggestionsTransportModePrediction.mlmodelc
+  assets:
+    - com_apple_MobileAsset_GeoPolygonDataAssets
+  launchagent_plists:
+    - com.apple.Maps.mapssyncd
+    - com.apple.Maps.pushdaemon
+    - com.apple.maps.destinationd
+  launchdaemon_plists: []
+  agents:
+    - Maps.mapssyncd
+    - maps.destinationd
+    - navd
+    - geodMachServiceBridge
+    - geoanalyticsd
+    #- locationaccessstored
+  daemons: []
+  pluginkit:
+    - com.apple.mapkit.private.RemoteUI
+  user_containers:
+    - com.apple.Maps
+  user_prefs:
+    - com.apple.Maps
+  user_caches:
+    - com.apple.Maps
+
+# ------------------------------------------------------------------------------
+# PHOTOS & MEDIA ANALYSIS
+# ------------------------------------------------------------------------------
+photos:
+  description: Photos library, photo analysis, cloud photo sync
+  apps:
+    - System/Applications/Photos.app
+    - System/Applications/Photo Booth.app
+    - System/Applications/Image Capture.app
+  helpers: []
+  xpc: []
+  prefpanes: []
+  appex:
+    - PhotoPicker.appex
+    - PhotosPicker.appex
+    - PhotosPosterProvider.appex
+    #- AudiovisualThumbnailExtension.appex
+    - iLifeSlideshows.appex
+  mdimporters:
+    - iPhoto.mdimporter
+    - iPhoto8.mdimporter
+  loctables: []
+  frameworks:
+    # CRITICAL: PhotoFoundation, PhotoLibraryServices, PhotosFormats, PhotosImagingFoundation,
+    # PhotosUI and related frameworks are NOT deleted from the SSV.
+    # The Wallpaper Settings pane (Wallpaper.appex) links PhotosUI.framework to show
+    # the user's photo library as a wallpaper source. Deleting these frameworks causes
+    # Wallpaper.appex to abort at dyld load time ("Extension process Wallpaper exited").
+    # - System/Library/PrivateFrameworks/PhotoFoundation.framework     # KEPT — Wallpaper.appex dep
+    # - System/Library/PrivateFrameworks/PhotoLibraryServices.framework # KEPT — Wallpaper.appex dep
+    # - System/Library/PrivateFrameworks/PhotosFormats.framework        # KEPT
+    # - System/Library/PrivateFrameworks/PhotosImagingFoundation.framework # KEPT
+    # - System/Library/PrivateFrameworks/MediaAnalysis.framework        # KEPT
+    # - System/Library/Frameworks/PhotosUI.framework                    # KEPT — Wallpaper.appex dep
+    # - System/Library/Frameworks/_PhotosUI_SwiftUI.framework           # KEPT
+    # - System/Library/Frameworks/_Photos_AppIntents.framework          # KEPT
+    # - System/Library/Frameworks/_PhotosUI_WidgetKit.framework         # KEPT
+  kexts: []
+  input_methods: []
+  services:
+    - System/Library/Image Capture/Automatic Tasks/Build Web Page.app
+    - System/Library/Image Capture/Automatic Tasks/MakePDF.app
+    - System/Library/Image Capture/Devices/AirScanScanner.app
+  coreservices: []
+  assets:
+  launchagent_plists: []
+  launchdaemon_plists: []
+  agents:
+    - photolibraryd
+    - photoanalysisd
+    - mediaanalysisd
+    - cloudphotod
+    - ptpcamerad
+  daemons: []
+  pluginkit:
+    - com.apple.PhotosUIPrivate.PhotosPosterProvider
+  user_containers:
+    - com.apple.Photos
+    - com.apple.photolibraryd
+  user_group_containers:
+    # Safe to remove: group.com.apple.Photos.PhotosFileProvider is the Photos FileProvider shared container.
+    - group.com.apple.Photos.PhotosFileProvider
+    # Safe to remove: group.com.apple.photolibraryd.private is the photo library daemon private shared container.
+    - group.com.apple.photolibraryd.private
+    # Safe to remove: group.com.apple.moments is the Photos Moments shared group container.
+    - group.com.apple.moments
+  user_prefs:
+    - com.apple.Photos
+    - com.apple.iPhoto
+  user_caches:
+    - com.apple.Photos
+
+# ------------------------------------------------------------------------------
+# MUSIC & MEDIA SERVICES
+# ------------------------------------------------------------------------------
+music:
+  description: Apple Music app, AMP library/device agents, media sharing
+  apps:
+    - System/Applications/Music.app
+    - System/Applications/TV.app
+    - System/Applications/Podcasts.app
+  helpers: []
+  xpc: []
+  prefpanes: []
+  appex:
+    - Album Artwork.appex
+  mdimporters: []
+  loctables: []
+  frameworks:
+    - System/Library/PrivateFrameworks/AMPLibrary.framework
+    - System/Library/PrivateFrameworks/AMPDevices.framework
+    - System/Library/PrivateFrameworks/AMPSharing.framework
+    - System/Library/Frameworks/MusicKit.framework
+    - System/Library/Frameworks/MediaLibrary.framework
+    - System/Library/Frameworks/MediaPlayer.framework
+    - System/Library/Frameworks/iTunesLibrary.framework
+    - System/Library/Frameworks/VideoSubscriberAccount.framework
+    - System/Library/Frameworks/_MusicKit_SwiftUI.framework
+  kexts: []
+  input_methods: []
+  coreservices: []
+  assets: []
+  launchagent_plists: []
+  launchdaemon_plists:
+    - com.apple.musicd
+  agents:
+    - AMPLibraryAgent
+    - AMPDeviceDiscoveryAgent
+    - AMPDevicesAgent
+    - AMPArtworkAgent
+    - AMPSystemPlayerAgent
+    - amp.mediasharingd
+    - shazamd
+    - videosubscriptionsd
+    - mediastream.mstreamd
+  daemons:
+    - com.apple.musicd
+  pluginkit: []
+  user_containers:
+    - com.apple.Music
+    - com.apple.TV
+    - com.apple.podcasts
+  user_group_containers:
+    # Safe to remove: 243LU875E5.groups.com.apple.podcasts is the Podcasts app shared group container (team ID prefix).
+    - 243LU875E5.groups.com.apple.podcasts
+  user_prefs:
+    - com.apple.Music
+    - com.apple.TV
+    - com.apple.podcasts
+  user_caches:
+    - com.apple.Music
+    - com.apple.TV
+    - com.apple.podcasts
+
+# ------------------------------------------------------------------------------
+# NEWS, STOCKS, WEATHER
+# ------------------------------------------------------------------------------
+news_stocks_weather:
+  description: News, Stocks, Weather apps and their sync agents
+  apps:
+    - System/Applications/News.app
+    - System/Applications/Stocks.app
+    - System/Applications/Weather.app
+  helpers: []
+  xpc:
+    - System/Library/PrivateFrameworks/StocksKit.framework/XPCServices/StocksKitService.xpc
+  prefpanes: []
+  appex: []
+  mdimporters: []
+  loctables: []
+  frameworks:
+    - System/Library/PrivateFrameworks/StocksKit.framework
+    - System/Library/PrivateFrameworks/WeatherFoundation.framework
+    - System/Library/Frameworks/WeatherKit.framework
+  kexts: []
+  input_methods: []
+  coreservices: []
+  assets: []
+  launchagent_plists:
+    - com.apple.newsd
+    - com.apple.weatherd
+  launchdaemon_plists: []
+  agents:
+    - newsd
+    - watchlistd
+    - sportsd
+    - weatherd
+    - financed
+  daemons: []
+  pluginkit: []
+  user_containers:
+    - com.apple.news
+    - com.apple.stocks
+    - com.apple.weather
+  user_group_containers:
+    - group.com.apple.news
+    - group.com.apple.newsd
+    - group.com.apple.stocks
+    - group.com.apple.stocks-news
+    - group.com.apple.weather
+  user_prefs:
+    - com.apple.news
+    - com.apple.stocks
+    - com.apple.weather
+  user_caches:
+    - com.apple.news
+    - com.apple.stocks
+
+# ------------------------------------------------------------------------------
+# NOTES & BOOKS
+# ------------------------------------------------------------------------------
+notes_books:
+  description: Notes app, Books app, linked notes
+  apps:
+    - System/Applications/Notes.app
+    - System/Applications/Books.app
+  helpers:
+  xpc: []
+  prefpanes: []
+  appex:
+    - PaperKitExtension.appex
+    - Word of the Day.appex
+  mdimporters: []
+  loctables: []
+  frameworks:
+    - System/Library/PrivateFrameworks/BookLibraryCore.framework
+    - System/Library/PrivateFrameworks/BookDataStore.framework
+    - System/Library/PrivateFrameworks/NotesShared.framework
+    - System/Library/PrivateFrameworks/NotesUI.framework
+  kexts: []
+  input_methods: []
+  coreservices: []
+  assets: []
+  launchagent_plists: []
+  launchdaemon_plists: []
+  agents:
+    - notes.exchangenotesd
+    - LinkedNotesUIService
+    - bookassetd
+    - bookdatastored
+  daemons: []
+  pluginkit: []
+  user_containers:
+    - com.apple.Notes
+    - com.apple.iBooksX
+  user_group_containers:
+    - group.com.apple.notes
+  user_prefs:
+    - com.apple.Notes
+    - com.apple.iBooks
+  user_caches:
+    - com.apple.Notes
+    - com.apple.iBooksX
+
+# ------------------------------------------------------------------------------
+# HOME KIT
+# ------------------------------------------------------------------------------
+homekit:
+  description: Home app, HomeKit smart home stack
+  apps:
+    - System/Applications/Home.app
+  helpers: []
+  xpc: []
+  prefpanes: []
+  appex:
+    - HomePrivacySettingsExtension.appex
+  mdimporters: []
+  loctables: []
+  frameworks:
+    - System/Library/Frameworks/HomeKit.framework
+    - System/Library/Frameworks/Matter.framework
+    - System/Library/Frameworks/MatterSupport.framework
+    - System/Library/PrivateFrameworks/HomeKitDaemon.framework
+  kexts: []
+  input_methods: []
+  coreservices: []
+  assets:
+    - com_apple_MobileAsset_HomeKitDevices
+  launchagent_plists: []
+  launchdaemon_plists: []
+  agents:
+    - homed
+    - homeenergyd
+    - homeeventsd
+    - ThreadCommissionerService
+  daemons: []
+  pluginkit:
+    - com.apple.Home.PrivacySettingsExtension
+    - com.apple.HomeAppIntentsExtension
+  user_containers:
+    - com.apple.Home
+  user_group_containers:
+    - com.apple.Home.group
+  user_prefs:
+    - com.apple.Home
+  user_caches:
+    - com.apple.Home
+
+# ------------------------------------------------------------------------------
+# GAME CENTER & GAME CONTROLLER
+# ------------------------------------------------------------------------------
+game_center:
+  description: Game Center social gaming, Game Controller framework
+  apps:
+    - System/Applications/Games.app
+  helpers: []
+  xpc: []
+  prefpanes: []
+  appex:
+    - GameCenterMacOSSettingsExtension.appex
+    - GameCenterDiagnosticExtension.appex
+    - GameCenterMessageExtension.appex
+    - GameCenterSettingsDeviceExpertExtension.appex
+    - GameControllerMacSettings.appex
+    - ChallengesMessageExtension.appex
+  mdimporters: []
+  loctables: []
+  frameworks:
+    - System/Library/Frameworks/GameKit.framework
+    - System/Library/Frameworks/GameController.framework
+    - System/Library/Frameworks/GameSave.framework
+    - System/Library/Frameworks/GameplayKit.framework
+  kexts: []
+  input_methods: []
+  coreservices:
+    - System/Library/CoreServices/Game Center.app
+    - System/Library/CoreServices/GameOverlayUI.app
+    - System/Library/CoreServices/GameTrampoline.app
+  assets:
+    - PreinstalledAssetsV2/RequiredByOs/com_apple_MobileAsset_GameController_DB1
+    - PreinstalledAssetsV2/RequiredByOs/com_apple_MobileAsset_GamePolicy_DB1
+  launchagent_plists: []
+  launchdaemon_plists: []
+  agents:
+    - gamed
+    - gamesaved
+    - GameController.gamecontrolleragentd
+    - GamePolicyAgent
+  daemons:
+    - com.apple.GameController.gamecontrollerd
+    - com.apple.gamepolicyd
+  pluginkit:
+    - com.apple.Game-Center-Settings.extension
+    - com.apple.Game-Controller-Settings.extension
+    - com.apple.gamecenter.GameCenterUIService.GameCenterMessageExtension
+    - com.apple.GameCenter.Settings.DeviceExpertExtension
+    - com.apple.GameCenterDiagnosticExtension
+    - com.apple.games.ChallengesMessageExtension
+  user_containers:
+    - com.apple.gamecenter
+  user_prefs:
+    - com.apple.gamecenter
+  user_caches:
+    - com.apple.gamecenter
+
+# ------------------------------------------------------------------------------
+# WALLET & APPLE PAY
+# ------------------------------------------------------------------------------
+wallet:
+  description: Wallet, Apple Pay, passes, Tap to Pay
+  apps:
+    - System/Applications/Passwords.app
+  helpers: []
+  xpc: []
+  prefpanes:
+    - Wallet.prefPane
+    - Passwords.prefPane
+  appex:
+    - WalletSettingsExtension.appex
+    - PasswordManagerAppIntentsExtension.appex
+    - PasswordSettingsAppIntentsExtension.appex
+    - PasswordsSettingsExtension.appex
+    - BiometricsAndPasswordSettingsAppIntentsExtension.appex
+  mdimporters: []
+  loctables: []
+  frameworks:
+    - System/Library/Frameworks/PassKit.framework
+    - System/Library/Frameworks/FinanceKit.framework
+    - System/Library/Frameworks/FinanceKitUI.framework
+    - System/Library/Frameworks/CarKey.framework
+    - System/Library/Frameworks/_PassKit_SwiftUI.framework
+    - System/Library/PrivateFrameworks/PassKitCore.framework
+    - System/Library/PrivateFrameworks/PassKitUI.framework
+  kexts: []
+  input_methods: []
+  coreservices:
+    - System/Library/CoreServices/Pass Viewer.app
+    - System/Library/CoreServices/PassViewer.app
+  assets: []
+  launchagent_plists: []
+  launchdaemon_plists: []
+  agents:
+    - passd
+    - financed
+  daemons: []
+  pluginkit:
+    - com.apple.WalletSettingsExtension
+    - com.apple.Passwords.PasswordManagerAppIntentsExtension
+    - com.apple.Passwords.PasswordSettingsAppIntentsExtension
+    - com.apple.BiometricsAndPasswordSettingsAppIntentsExtension
+  user_containers:
+    - com.apple.Passbook
+    - com.apple.Passwords
+  user_prefs:
+    - com.apple.Passbook
+  user_caches: []
+
+# ------------------------------------------------------------------------------
+# SHORTCUTS & AUTOMATOR
+# ------------------------------------------------------------------------------
+shortcuts_automator:
+  description: Shortcuts app, Automator, folder actions
+  apps:
+    - System/Applications/Shortcuts.app
+    - System/Applications/Automator.app
+  helpers: []
+  xpc: []
+  prefpanes: []
+  appex: []
+  mdimporters:
+    - Automator.mdimporter
+  loctables:
+    - Shortcuts.loctable
+  frameworks:
+    - System/Library/PrivateFrameworks/WorkflowKit.framework
+    - System/Library/Frameworks/Automator.framework
+  kexts: []
+  input_methods: []
+  coreservices:
+    - System/Library/CoreServices/Shortcuts Events.app
+    - System/Library/CoreServices/ShortcutsActions.app
+    - System/Library/CoreServices/FolderActionsDispatcher.app
+    - System/Library/CoreServices/Applications/Folder Actions Setup.app
+  assets: []
+  launchagent_plists: []
+  launchdaemon_plists: []
+  agents:
+    - FolderActionsDispatcher
+  daemons: []
+  pluginkit: []
+  user_containers:
+    - com.apple.shortcuts
+  user_group_containers:
+    - group.com.apple.shortcuts
+    - group.is.workflow.my.app
+    - group.is.workflow.shortcuts
+  user_prefs:
+    - com.apple.shortcuts
+    - com.apple.automator
+  user_caches:
+    - com.apple.shortcuts
+
+# ------------------------------------------------------------------------------
+# MISC REMOVED APPS: Dictionary, Font Book, Stickies, TextEdit, Tips, VoiceMemos,
+#   Freeform, Journal, Image Playground, QuickTime Player, App Store (Utilities),
+#   AirPort Utility, Boot Camp Assistant, Grapher, Migration Assistant, Script Editor
+# ------------------------------------------------------------------------------
+misc_apps:
+  description: Miscellaneous removed apps without large standalone feature stacks
+  apps:
+    # Safe to remove: Chess.app is the built-in chess game. No kept system binary depends on it.
+    - System/Applications/Chess.app
+    # Safe to remove: Phone.app provides Continuity Calling (iPhone relay). continuity feature removes
+    # the relevant daemons. No kept system binary depends on Phone.app itself.
+    - System/Applications/Phone.app
+    # Safe to remove: Dictionary.app is a standalone dictionary lookup app. No kept system binary depends on it; com_apple_MobileAsset_DictionaryServices_dictionary3macOS is its sole asset and is also being removed.
+    #- System/Applications/Dictionary.app
+    # Safe to remove: Font Book.app is the font management UI. No kept binary depends on it; font rendering itself is handled by Core Text (stays on disk, not in removal list).
+    #- System/Applications/Font Book.app
+    # Safe to remove: Stickies.app is a standalone desktop note app. stickersd (being disabled) provides com.apple.stickers.api for emoji sticker packs used by Messages (also being removed). No kept binary depends on Stickies.app directly.
+    - System/Applications/Stickies.app
+    # Safe to remove: TextEdit.app is a standalone text editor. No kept system binary depends on it.
+    - System/Applications/TextEdit.app
+    # Safe to remove: Tips.app is the macOS tutorial app. Its daemon (tipsd) and TipsSpotlightHandler.app are also being removed. No kept binary depends on it.
+    - System/Applications/Tips.app
+    # Safe to remove: VoiceMemos.app is a standalone audio recorder. voicememod (being disabled) provides com.apple.voicememod.xpc for iCloud sync; no kept binary depends on this XPC service.
+    - System/Applications/VoiceMemos.app
+    # Safe to remove: Freeform.app is Apple's collaborative whiteboard app. No kept system binary depends on it.
+    - System/Applications/Freeform.app
+    # Safe to remove: Journal.app is Apple's journaling app. No kept system binary depends on it.
+    - System/Applications/Journal.app
+    # Safe to remove: Image Playground.app is Apple Intelligence image generation UI. The underlying GenerativeExperiencesRuntime.framework and PrivateCloudCompute.framework are being removed in siri_and_intelligence. No kept binary depends on it.
+    - System/Applications/Image Playground.app
+    # Safe to remove: QuickTime Player.app is a standalone media player. AVFoundation (stays) provides playback APIs independently; no kept system binary depends on QuickTime Player.app itself.
+    - System/Applications/QuickTime Player.app
+    # Safe to remove: AirPort Utility.app manages Apple AirPort base stations, which are discontinued hardware. No kept system binary depends on it. AirPortBaseStationAgent (disabled in misc_daemons) is the only related agent.
+    #- System/Applications/Utilities/AirPort Utility.app
+    # Safe to remove: Boot Camp Assistant is for installing Windows on Intel Macs. This system is Apple Silicon (M5 Max) — Boot Camp is never used and the assistant does nothing on ARM. No kept binary depends on it.
+    - System/Applications/Utilities/Boot Camp Assistant.app
+    # Safe to remove: Grapher.app is a standalone graphing calculator. No kept system binary depends on it.
+    - System/Applications/Utilities/Grapher.app
+    # Safe to remove: Migration Assistant.app provides data migration during macOS setup. Its daemons (systemmigrationd, migrationhelper) are demand-launched only when Migration Assistant.app itself is opened or a QueueDirectory entry appears; no kept system binary holds a standing reference to com.apple.installandsetup.systemmigrationd.* MachServices. Verified via plutil -p: QueueDirectories trigger is /Library/SystemMigration/Queue only.
+    - System/Applications/Utilities/Migration Assistant.app
+    # Safe to remove: Script Editor.app is an AppleScript IDE. No kept system binary depends on it; the osascript interpreter (stays in /usr/bin) does not link Script Editor.
+    - System/Applications/Utilities/Script Editor.app
+  helpers: []
+  xpc: []
+  prefpanes:
+    # Safe to remove: DigiHubDiscs.prefPane is the System Settings pane for configuring disc insertion behaviour (CD/DVD autoplay). DVD Player.app is being removed. No kept system binary holds a reference to this pane.
+    - DigiHubDiscs.prefPane
+    # Safe to remove: PrintAndFax.prefPane is the legacy (pre-Ventura) System Preferences pane for printers. On macOS Tahoe the active pane is the System Settings extension (PrinterScannerSettings.appex, also being removed). No kept system binary depends on this legacy pane.
+    - PrintAndFax.prefPane
+    # Safe to remove: PrintAndScan.prefPane is the current System Settings pane for Printers & Scanners. Its companion agent (printtool.agent) and daemon (org.cups.cupsd) are both being disabled. No kept system binary depends on this pane.
+    #- PrintAndScan.prefPane
+    # CRITICAL: Speech.prefPane is a DUPLICATE entry — it is already listed and being removed in the siri_and_intelligence feature (line 67). Removing it twice is harmless in terms of idempotency, but flagged here so the executor does not error on a missing path after the first removal pass.
+    #- Speech.prefPane
+  appex:
+    # Safe to remove: CDs & DVDs Settings Extension.appex is the ExtensionKit settings extension for disc insertion behaviour. DVD Player.app and DigiHubDiscs.prefPane are both being removed. Verified present at /System/Library/ExtensionKit/Extensions/CDs & DVDs Settings Extension.appex. No kept binary depends on it.
+    - CDs & DVDs Settings Extension.appex
+    # Safe to remove: PrinterScannerSettings.appex is the System Settings extension for printer/scanner configuration. Its backing daemons (org.cups.cupsd, com.apple.printtool.daemon) and agents (printtool.agent, printuitool.agent) are all being disabled. Verified present at /System/Library/ExtensionKit/Extensions/PrinterScannerSettings.appex. No kept binary depends on it.
+    #- PrinterScannerSettings.appex
+    # Safe to remove: PrinterScannerIntentsExtension.appex is the App Intents extension for printer/scanner Siri shortcuts. All printing stack components are being removed. Verified present at /System/Library/ExtensionKit/Extensions/PrinterScannerIntentsExtension.appex. No kept binary depends on it.
+    #- PrinterScannerIntentsExtension.appex
+  mdimporters:
+    # Safe to remove: iWork.mdimporter is the Spotlight metadata importer for Pages, Numbers, and Keynote documents. None of those apps exist on this system (/System/Applications/ confirmed: Pages.app, Numbers.app, Keynote.app are absent). No kept binary depends on this importer.
+    - iWork.mdimporter
+  loctables: []
+  frameworks:
+    # Safe to remove: StickerFoundation.framework provides low-level sticker data storage for the emoji sticker picker (used by Messages and Stickies, both being removed). Verified via otool -L scan of Finder, Dock, loginwindow, SystemUIServer, ControlCenter: none link StickerFoundation. No kept binary outside the removed feature stack references it.
+    - System/Library/Frameworks/StickerFoundation.framework
+    # Safe to remove: StickerKit.framework provides the emoji sticker picker UI (used by Messages and Stickies, both being removed). Verified via otool -L scan of Finder, Dock, loginwindow, SystemUIServer, ControlCenter: none link StickerKit. No kept binary outside the removed feature stack references it.
+    - System/Library/Frameworks/StickerKit.framework
+    # Safe to remove: DVDPlayback.framework provides low-level DVD disc playback. Its only consumer is DVD Player.app (also being removed). Verified via otool -L: Finder, Dock, loginwindow do not link DVDPlayback. The only binary confirmed to hard-link it is /System/Library/CoreServices/Applications/DVD Player.app (also being removed in this feature's coreservices section).
+    - System/Library/Frameworks/DVDPlayback.framework
+    # Safe to remove: DiscRecordingUI.framework provides the disc-burning confirmation dialog UI. Verified via broad otool scan: the only binary that links DiscRecordingUI is /System/Library/CoreServices/DiscHelper.app, which is the disc burning UI helper — not a boot-critical component. Note: DiscRecording.framework (the public disc I/O API) is NOT listed here and stays on disk; Finder hard-links DiscRecording.framework and that dependency is unaffected by removing only DiscRecordingUI.
+    - System/Library/Frameworks/DiscRecordingUI.framework
+  kexts: []
+  input_methods: []
+  services:
+    # Safe to remove: ChineseTextConverterService.app is a Services menu item for converting between Traditional and Simplified Chinese text. Verified via otool -L: it only links Foundation, AppKit, and libSystem — all staying on disk. It is a pure UI service app with no MachService or daemon registration; no kept binary depends on it.
+    - System/Library/Services/ChineseTextConverterService.app
+    # Safe to remove: Summary Service.app is a Services menu item that summarises selected text. It is a pure UI service with no MachService or daemon registration; no kept system binary depends on it.
+    #- System/Library/Services/Summary Service.app
+    # Safe to remove: Display Calibrator.app is the ColorSync display calibration wizard. Verified via otool -L: it links only Cocoa, IOKit, Carbon, Security, and libSystem — all staying on disk. It has no MachService, LaunchAgent, or LaunchDaemon; it is an on-demand UI tool with no kept binary depending on it.
+    - System/Library/ColorSync/Calibrators/Display Calibrator.app
+  coreservices:
+    # Safe to remove: TipsSpotlightHandler.app handles Spotlight queries that open Tips.app content. Tips.app is being removed. No kept binary depends on this handler.
+    - System/Library/CoreServices/TipsSpotlightHandler.app
+    # Safe to remove: DVD Player.app is the DVD playback application. DVDPlayback.framework (its sole dependency being removed here) makes it non-functional anyway. This system has no optical drive. No kept binary depends on DVD Player.app.
+    - System/Library/CoreServices/Applications/DVD Player.app
+    # Safe to remove: Expansion Slot Utility.app shows PCI/Thunderbolt expansion card info. Verified via otool -L: links ExpansionSlotSupport.framework (a private UI-only framework), IOKit, and Security — all non-boot-critical. No LaunchAgent or LaunchDaemon registered; no kept system binary depends on it.
+    - System/Library/CoreServices/Applications/Expansion Slot Utility.app
+    # Safe to remove: iOS App Installer.app installs .ipa files onto connected iPhones/iPads. Verified via otool -L: links MobileInstallation.framework and AppStoreDaemon.framework — both being removed in app_store_updates. No kept system binary depends on it.
+    - System/Library/CoreServices/Applications/iOS App Installer.app
+    # Safe to remove: Ticket Viewer.app is the Kerberos ticket management GUI. Verified via otool -L: links GSS.framework and Heimdal.framework (both staying on disk as system Kerberos libraries). It is a pure UI app with no MachService or LaunchAgent; the underlying Kerberos stack (gssd, etc.) is not being removed and is unaffected. No kept binary depends on this app.
+    - System/Library/CoreServices/Applications/Ticket Viewer.app
+  assets:
+    # Safe to remove: com_apple_MobileAsset_DictionaryServices_dictionary3macOS is the macOS dictionary content asset for Dictionary.app (being removed). No kept binary streams from this asset directory.
+    - com_apple_MobileAsset_DictionaryServices_dictionary3macOS
+    # Safe to remove: com_apple_MobileAsset_VCPMobileAssets is a Video Codec Package asset bundle (confirmed via /System/Library/Video/Plug-Ins/VCPHEVC.bundle). The VCPHEVC bundle itself links only CoreFoundation, CoreMedia, CoreVideo, IOSurface, VideoToolbox, and libSystem — none of which are being removed. The MobileAsset directory does not exist on this system (path not present under /System/Library/AssetsV2/), confirming it has never been downloaded and is not in active use.
+    - com_apple_MobileAsset_VCPMobileAssets
+  launchagent_plists: []
+  launchdaemon_plists: []
+  agents:
+    # Safe to remove: tipsd is the Tips app analytics and content-update daemon. Verified via plutil -p: triggered by com.apple.coreduetcontext and language-changed notifications; its MachServices are com.apple.tipsd.*. Tips.app is being removed. No kept binary depends on com.apple.tipsd.* MachServices.
+    - tipsd
+    # Safe to remove: stickersd manages the emoji sticker pack index and recency list. Verified via plutil -p: MachServices are com.apple.stickers.api, com.apple.stickers.recency, com.apple.stickers.launch-state-manager — all consumed exclusively by Messages and Stickies (both being removed). No kept binary references these MachServices.
+    - stickersd
+    # Safe to remove: voicememod is the VoiceMemos iCloud sync daemon. Verified via plutil -p: binary at /System/iOSSupport/System/Library/PrivateFrameworks/VoiceMemos.framework/Support/voicememod; MachServices are com.apple.voicememod.xpc and com.apple.voicememod.datastore.Cloud. VoiceMemos.app is being removed. No kept binary depends on these XPC endpoints.
+    - voicememod
+    # Safe to remove: translationd provides on-device translation via Translation.framework. Verified via plutil -p: MachServices are com.apple.translation.text and com.apple.translationd. Verified via otool -L on Finder and Dock: neither links Translation.framework. No kept system binary depends on these MachServices.
+    - translationd
+    # Safe to remove: helpd serves the macOS Help Viewer content database. Verified via plutil -p: binary at HelpData.framework/Resources/helpd; sole MachService is com.apple.helpd. Verified via otool -L on Finder, Dock, loginwindow, and System Settings: none hard-link HelpData.framework. The Help Viewer UI (Help.app) is not a boot-critical component; disabling helpd causes Help menu items to silently fail but does not affect system boot or core OS operation.
+    #- helpd
+    # Safe to remove: midiserver is the CoreMIDI server providing MIDI device routing. Verified via plutil -p: LaunchEvent is com.apple.bluetooth.connections (triggered only when a Bluetooth MIDI device connects); MachServices are com.apple.midiserver and com.apple.midiserver.io. Verified via otool -L: Dock and Finder only weak-link libswiftCoreMIDI.dylib (weak flag confirmed), meaning dyld resolves gracefully to NULL if the server is absent. Verified via otool -L on coreaudiod and audiomxd: neither links CoreMIDI. The audio subsystem (coreaudiod/audiomxd — flagged NEVER touch in manifest header) is fully independent of midiserver.
+    # - midiserver
+    # Safe to remove: printtool.agent is the user-session print job manager. Verified via plutil -p: binary at PrintCore.framework/printtool with PRINTTOOL_MODE=agent; sole MachService is com.apple.printtool.agent. Verified via otool -L on Finder and loginwindow: neither links PrintCore. No kept system binary depends on this agent.
+    #- printtool.agent
+    # Safe to remove: printuitool.agent is the print dialog UI host. Verified via plutil -p: binary at PrintingPrivate.framework/PrintUITool; sole MachService is com.apple.printuitool.agent. No kept system binary hard-links PrintingPrivate.framework or depends on this MachService.
+    #- printuitool.agent
+  daemons:
+    # Safe to remove: org.cups.cupsd is the CUPS print spooler daemon. Verified via plutil -p: demand-activated only when /private/var/spool/cups/cache/org.cups.cupsd appears (PathState trigger); it does not run at boot unless a print job is submitted. No kept system binary holds a standing MachService dependency on cupsd. Verified via otool -L on Finder and loginwindow: neither links libcups.
+    #- org.cups.cupsd
+    # Safe to remove: com.apple.printtool.daemon is the system-level print job coordinator. Verified via plutil -p: binary at PrintCore.framework/printtool with PRINTTOOL_MODE=daemon; sole MachService is com.apple.printtool.daemon. No kept system binary depends on this MachService.
+    #- com.apple.printtool.daemon
+  pluginkit: []
+  user_containers:
+    # Safe to remove: com.apple.VoiceMemos is the VoiceMemos.app sandbox container (app being removed).
+    - com.apple.VoiceMemos
+    # Safe to remove: com.apple.freeform is the Freeform.app sandbox container (app being removed).
+    - com.apple.freeform
+    # Safe to remove: com.apple.Journal is the Journal.app sandbox container (app being removed).
+    - com.apple.Journal
+    # Safe to remove: com.apple.Tips is the Tips.app sandbox container (app and tipsd being removed).
+    - com.apple.Tips
+  user_group_containers:
+    # Safe to remove: com.apple.stickersd.group is the sticker pack shared group container (stickersd being removed).
+    - com.apple.stickersd.group
+    # Safe to remove: group.com.apple.Journal is the Journal app shared group container.
+    - group.com.apple.Journal
+    # Safe to remove: group.com.apple.VoiceMemos.shared is the VoiceMemos shared group container.
+    - group.com.apple.VoiceMemos.shared
+    # Safe to remove: group.com.apple.tips and group.com.apple.tipsnext are the Tips app shared group containers.
+    - group.com.apple.tips
+    - group.com.apple.tipsnext
+    # Safe to remove: group.com.apple.private.translation is the Translation service shared group container (translationd being removed).
+    - group.com.apple.private.translation
+    # Safe to remove: group.com.apple.feedback and group.com.apple.feedbacklogger are Feedback Assistant shared containers (app being removed).
+    - group.com.apple.feedback
+    - group.com.apple.feedbacklogger
+  user_prefs:
+    # Safe to remove: com.apple.VoiceMemos stores VoiceMemos app preferences (app being removed).
+    - com.apple.VoiceMemos
+    # Safe to remove: com.apple.ScriptEditor2 stores Script Editor preferences (app being removed).
+    - com.apple.ScriptEditor2
+    # Safe to remove: com.apple.Grapher stores Grapher preferences (app being removed).
+    - com.apple.Grapher
+    # Safe to remove: com.apple.Tips stores Tips app preferences (app and tipsd being removed).
+    - com.apple.Tips
+  user_caches:
+    # Safe to remove: com.apple.VoiceMemos is the VoiceMemos app cache directory (app being removed).
+    - com.apple.VoiceMemos
+
+# ------------------------------------------------------------------------------
+# AVATAR / MEMOJI
+# ------------------------------------------------------------------------------
+# memoji: # Renamed to avatars because it only removes Avatar junk
+avatars:
+  description: Avatar stack, Memoji picker, Memoji editor, AvatarUI
+  apps: []
+  helpers: []
+  xpc: []
+  prefpanes: []
+  appex:
+    - System/iOSSupport/System/Library/PrivateFrameworks/AvatarUI.framework/PlugIns/AvatarPickerMemojiPicker.appex
+    - System/iOSSupport/System/Library/PrivateFrameworks/AvatarUI.framework/PlugIns/AvatarPickerMemojiEditor.appex
+    - System/iOSSupport/System/Library/PrivateFrameworks/AvatarUI.framework/PlugIns/AvatarPickerPosePicker.appex
+  mdimporters: []
+  loctables: []
+  frameworks:
+    - System/Library/PrivateFrameworks/AvatarKitContent.framework
+    - System/Library/PrivateFrameworks/AvatarPersistence.framework
+    - System/iOSSupport/System/Library/PrivateFrameworks/AvatarUI.framework
+  kexts: []
+  input_methods: []
+  coreservices: []
+  assets: []
+  launchagent_plists: []
+  launchdaemon_plists: []
+  agents:
+    - avatarsd
+  daemons: []
+  pluginkit: []
+  user_containers: []
+  user_prefs: []
+  user_caches: []
+
+# ------------------------------------------------------------------------------
+# OLD WALLPAPERS & TEMPLATES
+# ------------------------------------------------------------------------------
+wallpapers_templates:
+  description: Legacy wallpapers (Sonoma), unused system templates
+  apps: []
+  helpers: []
+  xpc: []
+  prefpanes: []
+  appex: []
+  mdimporters: []
+  loctables: []
+  frameworks: []
+  kexts: []
+  input_methods: []
+  coreservices: []
+  ssv_extra_paths:
+    - System/Library/Desktop Pictures/.wallpapers/Sonoma
+    - System/Library/Desktop Pictures/.wallpapers/Sonoma Horizon
+    - System/Library/Templates/Data/Library/Application Support/iLifeMediaBrowser
+    - System/Library/Templates/Data/Library/Application Support/Script Editor
+    - System/Library/Templates/Data/Library/User Pictures
+    - System/Library/Templates/Data/Library/WebServer
+    - System/Library/Templates/Data/Library/Documentation
+    - System/Library/Templates/Data/Library/Ruby
+  assets: []
+  launchagent_plists: []
+  launchdaemon_plists: []
+  agents: []
+  daemons: []
+  pluginkit: []
+  user_containers: []
+  user_prefs: []
+  user_caches: []
+
+
+# ------------------------------------------------------------------------------
+# TIME MACHINE & BACKUP
+# Finder links TimeMachine.framework — framework stays.
+# ------------------------------------------------------------------------------
+time_machine:
+  description: Time Machine backup, backup daemons
+  apps:
+    - System/Applications/Time Machine.app
+  helpers: []
+  xpc: []
+  prefpanes:
+    - TimeMachine.prefPane
+  appex:
+    - TimeMachineSettings.appex
+    - TimeMachineSettingsIntents.appex
+  mdimporters: []
+  loctables: []
+  frameworks:
+  kexts: []
+  input_methods: []
+  menu_extras:
+    - TimeMachine.menu
+  coreservices: []
+  assets: []
+  launchagent_plists: []
+  launchdaemon_plists:
+    - com.apple.diagnosticextensions.osx.timemachine.helper
+  agents:
+    - TMHelperAgent
+  daemons:
+    - com.apple.backupd
+    - com.apple.backupd-helper
+    - com.apple.diagnosticextensions.osx.timemachine.helper
+  pluginkit:
+    - com.apple.Time-Machine-Settings.extension
+  user_containers: []
+  user_prefs:
+    - com.apple.TimeMachineScheduler
+  user_caches: []
+
+# ------------------------------------------------------------------------------
+# REMOTE MANAGEMENT
+# ------------------------------------------------------------------------------
+remote_management:
+  description: Apple Remote Desktop, Screen Sharing, Remote Management MDM
+  apps:
+    # Safe to remove: Screen Sharing.app is the Utilities screen-sharing client. Verified via otool -L: links only public frameworks (AppKit, Foundation, Contacts, ScreenSharing.framework, etc.). No kept binary (loginwindow, Dock, Finder, SystemUIServer, ControlCenter, rapportd) links this app or depends on it. ScreenSharing.framework stays on disk.
+    - System/Applications/Utilities/Screen Sharing.app
+  helpers: []
+  xpc: []
+  prefpanes: []
+  appex: []
+  mdimporters: []
+  loctables: []
+  frameworks:
+    # Safe to remove: RemoteManagement.framework hosts the remotemanagementd and RemoteManagementAgent binaries. Verified via otool -L on loginwindow, Dock, Finder, SystemUIServer, ControlCenter, rapportd, secd, launchd: none link RemoteManagement.framework. Only consumers are remotemanagementd and RemoteManagementAgent (both being removed in this feature). Confirmed via rg scan of all LaunchDaemon/LaunchAgent plists: no kept plist references com.apple.remotemanagementd MachServices.
+    - System/Library/PrivateFrameworks/RemoteManagement.framework
+  kexts: []
+  input_methods: []
+  coreservices:
+    # Safe to remove: ARDAgent.app is the Apple Remote Desktop agent. Verified via otool -L: links libpcre2, login.framework, Cocoa, DiskManagement.framework, CoreUtils.framework, and standard public frameworks — all self-contained to the ARD stack. No kept binary depends on ARDAgent.
+    - System/Library/CoreServices/RemoteManagement/ARDAgent.app
+    # Safe to remove: Remote Desktop Message.app displays ARD messages sent from an admin console. Verified via otool -L: links only Foundation, Cocoa, AppKit, SystemConfiguration, CoreFoundation, libobjc, libSystem. No kept binary depends on it.
+    - System/Library/CoreServices/RemoteManagement/Remote Desktop Message.app
+    # Safe to remove: SSMenuAgent.app is the Screen Sharing menu bar extra. Verified via otool -L: links ScreenSharing.framework (private, stays on disk), Contacts.framework, ContactsUI.framework, AppKit, Foundation, Security — all public or framework-stays-on-disk. No kept binary depends on SSMenuAgent itself.
+    - System/Library/CoreServices/RemoteManagement/SSMenuAgent.app
+  assets: []
+  launchagent_plists: []
+  launchdaemon_plists: []
+  agents:
+    # Safe to remove: screensharing.agent is the user-session screen sharing acceptor (ScreensharingAgent.bundle). Verified via plutil -p: demand-launched on com.apple.screensharing.agent.launchd notification and WatchPaths /private/etc/com.apple.screensharing.agent.launchd; sole MachService is com.apple.screensharing.agent. No kept daemon or LaunchAgent plist connects to com.apple.screensharing.agent outside this feature.
+    - screensharing.agent
+    # Safe to remove: screensharing.menuextra is the Screen Sharing menu bar extra agent (SSMenuAgent.app). Verified via plutil -p: demand-launched on com.apple.screensharing.menuextra notification; sole MachService is com.apple.screensharing.menuextra. No kept daemon connects to com.apple.screensharing.menuextra.
+    - screensharing.menuextra
+    # Safe to remove: RemoteManagementAgent is the user-session MDM remote management agent (RemoteManagement.framework/RemoteManagementAgent). Verified via plutil -p: MachServices are com.apple.RemoteManagementAgent, com.apple.RemoteManagementAgent.store, com.apple.aps.remotemanagementd.http.apns-dev/prod — all MDM/APNS-specific. RemoteManagement.framework (being removed) hosts the binary. No kept binary uses these MachServices.
+    - RemoteManagementAgent
+    # Safe to remove: ssinvitationagent is the Screen Sharing invitation broker (ScreensharingAgent.bundle/SSInvitationAgent.app). Verified via plutil -p: launched on com.apple.screensharing.idslaunchnotification; MachServices are com.apple.screensharing.ShareScreenInvitation and com.apple.screensharing.ViewInvitation. This label is also listed as active in the continuity feature (line 1315), which already ensures it is disabled; this entry is a consistent duplicate. No kept binary outside the screen-sharing stack depends on these MachServices.
+    - ssinvitationagent
+  daemons:
+    # Safe to remove: com.apple.remotemanagementd is the system-level MDM remote management daemon (RemoteManagement.framework/remotemanagementd). Verified via plutil -p: MachServices are com.apple.remotemanagementd, com.apple.remotemanagementd.store, com.apple.aps.remotemanagementd.http.apns-dev/prod — all MDM/APNS-specific. RemoteManagement.framework (being removed) hosts the binary. No kept system daemon connects to these MachServices. Confirmed via rg scan of all LaunchDaemon plists.
+    - com.apple.remotemanagementd
+    # Safe to remove: com.apple.RemoteDesktop.PrivilegeProxy runs VNCPrivilegeProxy (AppleVNCServer.bundle/VNCPrivilegeProxy). Verified via plutil -p: sole MachService is com.apple.RemoteDesktop.PrivilegeProxy. Verified via otool -L on VNCPrivilegeProxy: links only Foundation, Kerberos, CoreFoundation, libobjc, libSystem. The sole consumer is ARDAgent.app (being removed). No kept daemon connects to com.apple.RemoteDesktop.PrivilegeProxy.
+    - com.apple.RemoteDesktop.PrivilegeProxy
+    # Safe to remove: com.apple.remotepairtool runs RemotePairTool (/System/Library/CoreServices/RemotePairTool). Verified via plutil -p: sole MachService is com.apple.RemotePairTool. Verified via otool -L: links only Security.framework, Foundation, CoreFoundation, libobjc, libSystem. No kept daemon plist references com.apple.RemotePairTool outside this feature. Confirmed via rg scan of all LaunchDaemon/LaunchAgent plists.
+    - com.apple.remotepairtool
+    # Safe to remove: com.apple.screensharing runs screensharingd.bundle (VNC server). Verified via plutil -p: already Disabled=true in its own plist — it never activates unless explicitly enabled via System Settings. MachService is com.apple.screensharing.server (HideUntilCheckIn). No kept daemon references com.apple.screensharing.server outside this feature. Disabling is a no-op on a system where VNC was never enabled.
+    - com.apple.screensharing
+  pluginkit: []
+  user_containers: []
+  user_prefs:
+    # Safe to remove: com.apple.ScreenSharing is the Screen Sharing app preference plist. Screen Sharing.app is being removed. No kept binary reads this preference domain.
+    - com.apple.ScreenSharing
+    # Safe to remove: com.apple.RemoteDesktop is the Apple Remote Desktop preference plist. ARDAgent.app is being removed. No kept binary reads this preference domain.
+    - com.apple.RemoteDesktop
+  user_caches: []
+# ------------------------------------------------------------------------------
+# APP STORE & SOFTWARE UPDATE
+# NOTE: CommerceKit.framework + storeuid.app KEPT — many processes lazy-load it.
+# softwareupdated disabled: SSV broken, updates permanently dead.
+# ------------------------------------------------------------------------------
+app_store_updates:
+  description: App Store app, software update stack
+  apps:
+    - System/Applications/App Store.app
+    - System/Applications/Apps.app
+  helpers: []
+  xpc: []
+  prefpanes: []
+  appex: []
+  mdimporters: []
+  loctables: []
+  frameworks:
+    - System/Library/PrivateFrameworks/AppStoreDaemon.framework
+    - System/Library/PrivateFrameworks/AppStoreComponents.framework #Breaks Safari "Include search engne suggestions"
+    - System/Library/PrivateFrameworks/AppleMediaServicesUI.framework
+    #- System/Library/PrivateFrameworks/OnDeviceStorage.framework
+    #- System/Library/Frameworks/StoreKit.framework
+    - System/Library/Frameworks/BackgroundAssets.framework
+  kexts: []
+  input_methods: []
+  coreservices: []
+  assets: []
+  launchagent_plists: []
+  launchdaemon_plists: []
+  agents:
+    - SoftwareUpdateNotificationManager
+    - commerce
+    - appstoreagent
+    - appstorecomponentsd
+    - storedownloadd
+    - storeassetd
+    - storekitagent
+    - storeaccountd
+    - storelegacy
+    - amsaccountsd
+    - amsengagementd
+    - amsondevicestoraged
+    - appplaceholdersyncd
+    - backgroundassets.user
+    - backgroundtaskmanagement.agent
+    - jetpackassetd
+    - languageassetd
+  daemons:
+    - com.apple.appstored
+    - com.apple.softwareupdated
+    - com.apple.mobile.softwareupdated
+    #- com.apple.backgroundtaskmanagementd
+  pluginkit:
+    - com.apple.SoftwareUpdate.SoftwareUpdateSettingsWidget
+  user_containers:
+    - com.apple.AppStore
+  user_group_containers:
+    - group.com.apple.appstoreagent
+    - group.com.apple.amsondevicestoraged
+  user_prefs:
+    - com.apple.AppStore
+    - com.apple.SoftwareUpdate
+  user_caches:
+    - com.apple.AppStore
+
+# ------------------------------------------------------------------------------
+# FIND MY (Find My Mac, Find My Friends, AirTag)
+# loginwindow links FindMyMac.framework + FindMyDevice.framework — frameworks stay.
+# ------------------------------------------------------------------------------
+find_my:
+  description: Find My Mac, Find My Friends, AirTag beaconing
+  apps:
+    - System/Applications/FindMy.app
+  helpers:
+  xpc: []
+  prefpanes: []
+  appex:
+    - FindMyCoreFollowUpExtension.appex
+    - FindMyIntentsExtension.appex
+    - FindMyUIAdaptor.appex
+  mdimporters: []
+  loctables: []
+  frameworks:
+    - System/Library/PrivateFrameworks/FindMyCore.framework
+  kexts: []
+  input_methods: []
+  coreservices: []
+  assets: []
+  launchagent_plists:
+    - com.apple.findmymacmessenger
+  launchdaemon_plists:
+    - com.apple.findmy.findmybeaconingd
+    - com.apple.findmymac
+    - com.apple.findmymacmessenger
+  agents:
+    - findmy.findmylocateagent
+    - findmymacmessenger
+    - icloud.searchpartyuseragent
+  daemons:
+    - com.apple.findmy.findmybeaconingd
+    - com.apple.icloud.findmydeviced
+    - com.apple.findmymacmessenger
+    - com.apple.icloud.searchpartyd
+  pluginkit:
+    - com.apple.findmy.FindMyIntents
+  user_containers:
+    - com.apple.findmy
+  user_group_containers:
+    - group.com.apple.findmy.findmylocateagent
+  user_prefs:
+    - com.apple.findmy
+  user_caches: []
+
+# ------------------------------------------------------------------------------
+# iOS / iPHONE ECOSYSTEM
+# Components for iPhone pairing, proximity detection, and accessory firmware updates.
+# CallHistory/telephony frameworks and agents have been moved to messages_facetime feature
+# where they belong (used by FaceTime.app).
+# ------------------------------------------------------------------------------
+ios_ecosystem:
+ description: iPhone mirroring, Continuity Camera, USB device management, accessory updates
+ apps: []
+ helpers: []
+ xpc: []
+ prefpanes: []
+ appex: []
+ mdimporters: []
+ loctables: []
+ frameworks:
+   - System/Library/PrivateFrameworks/MobileAccessoryUpdater.framework
+ kexts: []
+ input_methods: []
+ coreservices: []
+ assets: []
+ launchagent_plists: []
+ launchdaemon_plists: []
+ agents:
+   # CRITICAL: companiond provides com.apple.companiond.xpc and com.apple.CompanionServices XPC. Verified: plutil -p on LaunchAgent plist. Required for iPhone-Mac pairing, handoff, and Apple Watch unlock. Removal breaks all continuity features.
+   # - companiond
+   # CRITICAL: cmio.ContinuityCaptureAgent is ALREADY LISTED in continuity feature (line 1180). Duplicate entry - do not uncomment here.
+   # - cmio.ContinuityCaptureAgent
+   - MobileAccessoryUpdater.fudHelperAgent
+   - mobilerepaird
+   - accessorysensormgrd
+   # CRITICAL: mbfloagent, mbbackgrounduseragent, mbuseragent, mbproximityhelper are part of the mobilebridge proximity/handoff stack. Required for iPhone continuity features even when iPhone Mirroring.app is not used. Removal breaks proximity detection and handoff.
+   # - mbfloagent
+   # - mbbackgrounduseragent
+   # - mbuseragent
+   # - mbproximityhelper
+   - usbnotificationagent
+   - cmio.LaunchCMIOUserExtensionsAgent
+ daemons:
+ pluginkit: []
+ user_containers: []
+ user_prefs: []
+ user_caches: []
+
+# ------------------------------------------------------------------------------
+# HANDOFF / CONTINUITY / SIDECAR / AIRDROP / RAPPORT
+# Finder links SidecarUI.framework — framework stays.
+# CRITICAL WARNING: Sharing.framework is linked by loginwindow, Dock, and Finder (non-weak).
+# NEVER add Sharing.framework to the frameworks list below - removal causes boot failure.
+# Verified via: otool -L /System/Library/CoreServices/loginwindow.app/Contents/MacOS/loginwindow
+# ------------------------------------------------------------------------------
+continuity:
+  description: Handoff, Continuity Camera, Sidecar, AirDrop, Universal Control, Rapport
+  apps:
+    - System/Applications/iPhone Mirroring.app
+  helpers:
+    #- System/Library/Frameworks/CoreMediaIO.framework/Versions/A/Resources/CinematicFramingOnboardingUI.app
+    #- System/Library/Frameworks/CoreMediaIO.framework/Versions/A/Resources/ContinuityCaptureOnboardingUI.app
+  xpc: []
+  prefpanes: []
+  appex:
+    - AirDropHandoffExtension.appex
+    - AirDropHandoffIntentsExtension.appex
+  mdimporters: []
+  loctables:
+    - AirDrop.loctable
+    - AirplayReceiver.loctable
+  frameworks:
+    #- System/Library/PrivateFrameworks/Ecosystem.framework
+    - System/Library/PrivateFrameworks/RapportUI.framework
+    - System/Library/PrivateFrameworks/Rapport.framework
+    - System/Library/Frameworks/DeviceDiscoveryExtension.framework
+    #This is a public framework used by third-party apps for peer-to-peer networking (collaborative whiteboarding, local multiplayer games, file sharing apps, etc.). Removing it crashes any app that links it.
+    #- System/Library/Frameworks/MultipeerConnectivity.framework
+  kexts: []
+  input_methods: []
+  coreservices:
+    - System/Library/CoreServices/AirPlayUIAgent.app
+    - System/Library/CoreServices/RapportUIAgent.app
+    - System/Library/CoreServices/MusicRecognitionMac.app
+  assets: []
+  launchagent_plists: []
+  launchdaemon_plists: []
+  agents:
+    # CRITICAL: sharingd provides essential XPC services including AirDrop (com.apple.sharing.airdrop.service), Handoff advertising/scanning (com.apple.sharing.handoff.*), and AutoUnlock AuthenticationHints (com.apple.AutoUnlock.AuthenticationHintsProvider). Verified via: plutil -p /System/Library/LaunchAgents/com.apple.sharingd.plist showed 14 MachServices. Disabling breaks AirDrop, Handoff, and Apple Watch unlock functionality.
+    # - sharingd
+    - AirPlayUIAgent
+    - sidecar-relay
+    - mediacontinuityd
+    - ssinvitationagent
+    - coreservices.useractivityd
+    - ecosystemagent
+    - RapportUIAgent
+    - cmio.ContinuityCaptureAgent
+  daemons:
+    - com.apple.rapportd
+    - com.apple.nearbyd
+  pluginkit:
+    - com.apple.AirDrop-Handoff-Settings.extension
+  user_containers: []
+  user_group_containers:
+    # Safe to remove: group.com.apple.ScreenContinuityServices is the Screen Continuity shared group container (mediacontinuityd being removed).
+    - group.com.apple.ScreenContinuityServices
+    # Safe to remove: group.com.apple.coreservices.useractivityd is the user activity shared container (coreservices.useractivityd being removed).
+    - group.com.apple.coreservices.useractivityd
+  user_prefs:
+    #- com.apple.sharingd
+  user_caches: []
+
+# ------------------------------------------------------------------------------
+# ANALYTICS, TELEMETRY & DIAGNOSTICS UPLOAD
+# XProtect: frozen signatures on broken SSV — pure overhead.
+# ------------------------------------------------------------------------------
+telemetry:
+  description: All Apple telemetry, diagnostics upload, analytics, XProtect scanning
+  apps: []
+  helpers: []
+  xpc:
+    # Safe to remove: CloudTelemetryService.xpc is the XPC helper for CloudTelemetry.framework. Verified via otool -L: it links C2.framework, CloudTelemetryShared.dylib, CrashReporterSupport.framework, and OSAnalytics.framework — all telemetry-specific. No kept system binary (Finder, Dock, loginwindow, SystemUIServer) links CloudTelemetry.framework or this XPC service. Verified via rg scan of all LaunchAgent/LaunchDaemon plists: zero references outside this feature.
+    - System/Library/PrivateFrameworks/CloudTelemetry.framework/Versions/A/XPCServices/CloudTelemetryService.xpc
+  prefpanes: []
+  appex:
+    # Safe to remove: TelemetryAggregator.appex is an ExtensionKit background worker that aggregates telemetry data for upload. Verified present at /System/Library/ExtensionKit/Extensions/TelemetryAggregator.appex. No kept system binary depends on it.
+    - TelemetryAggregator.appex
+    # Safe to remove: BiomeSELFIngestor.appex is ALSO listed in icloud feature (line 222). It is a Biome data upload worker. No kept binary requires it; Biome agents (BiomeAgent, biomesyncd) are being removed in background_intelligence.
+    - BiomeSELFIngestor.appex
+    # Safe to remove: GMSSELFIngestor.appex is a Google Mobile Services / GMS telemetry upload worker. Verified present at /System/Library/ExtensionKit/Extensions/GMSSELFIngestor.appex. No kept system binary depends on it.
+    - GMSSELFIngestor.appex
+    # Safe to remove: UnilogTelemetryWorker.appex is the Unilog telemetry data upload worker. Verified present at /System/Library/ExtensionKit/Extensions/UnilogTelemetryWorker.appex. No kept system binary depends on it.
+    - UnilogTelemetryWorker.appex
+    # Safe to remove: AssetMetricsExtension.appex reports metrics on MobileAsset downloads. Verified present at /System/Library/ExtensionKit/Extensions/AssetMetricsExtension.appex. No kept system binary depends on it.
+    - AssetMetricsExtension.appex
+    # Safe to remove: SecurityImprovementsExtension.appex uploads security improvement data to Apple. Verified present at /System/Library/ExtensionKit/Extensions/SecurityImprovementsExtension.appex. No kept system binary depends on it.
+    - SecurityImprovementsExtension.appex
+    # Safe to remove: BitacoraWorker.appex is a telemetry log (bitacora = log/ledger) upload worker. Verified present at /System/Library/ExtensionKit/Extensions/BitacoraWorker.appex. No kept system binary depends on it.
+    - BitacoraWorker.appex
+    # Safe to remove: PRIMLCKPreemptivePing.appex sends preemptive lock-check pings for PRIM telemetry. Verified present at /System/Library/ExtensionKit/Extensions/PRIMLCKPreemptivePing.appex. No kept system binary depends on it.
+    - PRIMLCKPreemptivePing.appex
+    # Safe to remove: PnROnDeviceWorker.appex is the Ping-and-Reply on-device telemetry worker. Verified present at /System/Library/ExtensionKit/Extensions/PnROnDeviceWorker.appex. No kept system binary depends on it.
+    - PnROnDeviceWorker.appex
+    # Safe to remove: PnRCarPlayOnDeviceWorker.appex is the CarPlay variant of the Ping-and-Reply telemetry worker. Verified present at /System/Library/ExtensionKit/Extensions/PnRCarPlayOnDeviceWorker.appex. No kept system binary depends on it.
+    - PnRCarPlayOnDeviceWorker.appex
+    # Safe to remove: RepackagingWorker.appex handles repackaging/resubmission of telemetry payloads. Verified present at /System/Library/ExtensionKit/Extensions/RepackagingWorker.appex. No kept system binary depends on it.
+    - RepackagingWorker.appex
+  mdimporters: []
+  loctables: []
+  frameworks:
+    # Safe to remove: CloudTelemetry.framework is the Apple cloud telemetry upload stack. Verified via otool -L on Finder, Dock, loginwindow, SystemUIServer, ControlCenter: none link CloudTelemetry.framework. Verified via rg scan of all LaunchAgent/LaunchDaemon plists: zero references outside this feature. Its only consumers (CloudTelemetryService.xpc, analyticsd, ecosystemanalyticsd) are all being removed.
+    - System/Library/PrivateFrameworks/CloudTelemetry.framework
+    # Safe to remove: UsageTracking.framework provides the UsageTrackingAgent binary and Screen Time usage-data collection APIs. Verified via otool -L on Finder, Dock, loginwindow, SystemUIServer, ControlCenter: none hard-link UsageTracking.framework. The screen_time_family feature (which removes ScreenTime.framework consumers) is also being removed. ScreenTime.framework itself does NOT link UsageTracking (verified via otool -L). UsageTrackingAgent is being removed in this feature's agents list.
+    - System/Library/PrivateFrameworks/UsageTracking.framework
+    # Safe to remove: EcosystemAnalytics.framework is the analytics stack for the Apple device ecosystem (EcosystemAnalytics daemon). Verified via otool -L on Finder, Dock, loginwindow: none link EcosystemAnalytics.framework. Verified via rg scan of all LaunchAgent/LaunchDaemon plists: no plist outside this feature references com.apple.ecosystemanalytics.* MachServices.
+    - System/Library/PrivateFrameworks/EcosystemAnalytics.framework
+    # Safe to remove: Noticeboard.framework provides the nbstated daemon and noticeboard notification delivery. Verified via otool -L on Finder, Dock, loginwindow, SystemUIServer: none hard-link Noticeboard.framework. Verified via rg scan of all LaunchAgent/LaunchDaemon plists: zero references to com.apple.noticeboard.state MachService outside this feature.
+    - System/Library/PrivateFrameworks/Noticeboard.framework
+    # Safe to remove: MetricKit.framework provides the metrickitd daemon and MetricKit app performance reporting API. Verified via otool -L on Finder, Dock, loginwindow, SystemUIServer: none link MetricKit.framework. Verified via rg scan of all LaunchAgent/LaunchDaemon plists: zero references to com.apple.metrickit.xpc MachService outside this feature's metrickitd entry.
+    - System/Library/Frameworks/MetricKit.framework
+  kexts: []
+  input_methods: []
+  coreservices:
+    # Safe to remove: Feedback Assistant.app is the Apple Feedback portal app and hosts seedusaged/fbahelperd LaunchServices helpers. Verified via otool -L: links Feedback.framework, FeedbackCore.framework, DiagnosticExtensions.framework — all telemetry-only. No kept system binary depends on Feedback Assistant or its embedded helpers (seedusaged, fbahelperd).
+    - System/Library/CoreServices/Applications/Feedback Assistant.app
+  assets:
+    # Safe to remove: SplunkRecords is the AssetsV2 directory for Splunk log-shipping records. Confirmed absent (path not found under /System/Library/AssetsV2/SplunkRecords), so removal is a no-op if not present. No kept binary streams from this asset directory.
+    - SplunkRecords
+    # Safe to remove: analytics is the AssetsV2 directory for mobileassetd analytics records (MADAnalytics files). Confirmed present and contains only mobileassetd scheduling/download telemetry logs. No kept binary requires this directory for functionality.
+    - analytics
+  launchagent_plists: []
+  launchdaemon_plists: []
+  agents:
+    # Safe to remove: analyticsagent uploads CoreAnalytics telemetry events. Verified via plutil -p: triggered by com.apple.gms.availability.notification and com.apple.coreanalytics.analyticsagent XPC activity. MachServices: none registered. No kept system binary depends on this agent.
+    #- analyticsagent
+    # Safe to remove: diagnosticspushd pushes diagnostic reports to Apple post-install. Verified via plutil -p: triggered by PostInstall XPC bg-task; MachServices are com.apple.diagnosticspushd.*. No kept system binary depends on these MachServices.
+    #- diagnosticspushd
+    # Safe to remove: diagnostics_agent is the OSAnalytics stability monitor agent. Verified via plutil -p: KeepAlive=true but sole MachService is com.apple.osanalytics.user.cachedelete — a cache cleanup hook. Verified via rg: no LaunchAgent or LaunchDaemon outside this feature subscribes to com.apple.osanalytics.user.cachedelete. No kept system binary depends on it.
+    #- diagnostics_agent
+    # Safe to remove: diagnosticextensionsd is the diagnostics extension host agent. Verified via plutil -p: MachService is com.apple.diagnosticextensionsd.session; triggered by com.apple.diagnosticextensionsd.collection-started notification. No kept system binary connects to com.apple.diagnosticextensionsd.session.
+    #- diagnosticextensionsd
+    # Safe to remove: triald is the A/B experiment trial daemon (user session). Verified via plutil -p: MachServices are com.apple.triald.*; triggered by Apple Account add/delete events and language/dictation change notifications. No kept system binary depends on com.apple.triald.* MachServices.
+    - triald
+    # Safe to remove: UsageTrackingAgent collects per-app Screen Time usage data. Verified via plutil -p: subscribes to com.apple.ManagedSettings.effective-settings.changed (deviceActivity group) and DKSync2Coordinator notifications. UsageTracking.framework (removed above) hosts this agent binary. Note: the CRITICAL comment in the enterprise feature refers to ManagedSettingsAgent (kept), not UsageTrackingAgent — both are separate agents; removing UsageTrackingAgent does not affect the ManagedSettings event bus for dmd and lockoutagent.
+    - UsageTrackingAgent
+    # Safe to remove: ap.adprivacyd is the Apple Advertising differential-privacy daemon. Verified via plutil -p: triggered by CKAccountChangedNotification and iAd-specific notifications; MachServices are com.apple.ap.adprivacyd.*. No kept system binary depends on it.
+    - ap.adprivacyd
+    # Safe to remove: ap.promotedcontentd downloads App Store promoted content for ads. Verified via plutil -p: triggered by PostInstall bg-task; no MachServices registered. No kept system binary depends on it.
+    - ap.promotedcontentd
+    # Safe to remove: inputanalyticsd uploads keyboard/input usage analytics. Verified via plutil -p: triggered by daily XPC bg-task; MachService is com.apple.inputanalyticsd. No kept system binary connects to com.apple.inputanalyticsd.
+    - inputanalyticsd
+    # Safe to remove: feedbackd is the Feedback Assistant notification delivery agent. Verified via plutil -p: MachServices are com.apple.feedbackd.centralized-feedback and com.apple.usernotifications.delegate.com.apple.appleseed.FeedbackAssistant. Feedback Assistant.app (being removed above) is the sole consumer.
+    - feedbackd
+    # Safe to remove: loginwindow.LWWeeklyMessageTracer sends weekly login/logout analytics. Verified via plutil -p: binary is loginwindow.app/Contents/Resources/LWAnalytics; runs on a weekly calendar interval; no MachServices registered; no other process depends on it.
+    - loginwindow.LWWeeklyMessageTracer
+    # Safe to remove: pluginkit.pkreporter reports PluginKit plugin usage analytics. Verified via plutil -p: binary is /usr/libexec/pkreporter; runs weekly on Saturday at 06:10; no MachServices registered; no other process depends on it.
+    #- pluginkit.pkreporter
+    # Safe to remove: ReportGPURestart reports GPU restart events to Apple. Verified via plutil -p: Disabled=true already in the plist; binary is OpenGL.framework/Libraries/ReportGPURestart (Intel/AMD only; dead on Apple Silicon). Also listed in intel_amd_dead_code feature. No kept system binary depends on it.
+    - ReportGPURestart
+    # Safe to remove: appleseed.seedusaged checks Apple Seed / beta enrollment status. Verified via plutil -p: binary embedded inside Feedback Assistant.app (being removed) at Contents/Library/LaunchServices/seedusaged; runs daily at noon; no MachServices registered.
+    - appleseed.seedusaged
+    # Safe to remove: appleseed.seedusaged.postinstall is the post-install variant of seedusaged. Same binary as seedusaged (Feedback Assistant.app, being removed); triggered post-install only; no MachServices registered.
+    - appleseed.seedusaged.postinstall
+    # Safe to remove: betaenrollmentagent verifies Apple Beta Software Program enrollment. Verified via plutil -p: MachService is com.apple.seeding.client; triggered by daily XPC maintenance activity. No kept system binary connects to com.apple.seeding.client.
+    - betaenrollmentagent
+    # Safe to remove: dprivacyd (user agent) implements differential privacy reporting for Apple analytics. Verified via plutil -p: triggered by scheduled XPC activities for Dedisco reporting and privacy budget maintenance; no MachServices registered (user session variant). No kept system binary depends on it.
+    - dprivacyd
+    # Safe to remove: proactiveeventtrackerd sends proactive event data to Apple analytics. Verified via plutil -p: triggered by daily and bi-daily XPC maintenance activities; no MachServices registered. No kept system binary depends on it.
+    - proactiveeventtrackerd
+    # Safe to remove: sysdiagnose_agent is the user-session helper for sysdiagnose log collection. Verified via plutil -p: MachService is com.apple.sysdiagnose_agent; demand-launched only when sysdiagnose is triggered (key-chord or explicitly). No kept system binary holds a standing dependency on com.apple.sysdiagnose_agent.
+    #- sysdiagnose_agent
+    # Safe to remove: spindump_agent is the user-session spin report submitter. Verified via plutil -p: MachService is com.apple.spinreporteragent; binary is /usr/libexec/spindump_agent. This is distinct from the system spindump daemon (com.apple.spindump) which is also in this feature. No kept system binary depends on com.apple.spinreporteragent.
+    #- spindump_agent
+    # Safe to remove: enhancedloggingd manages enhanced (syslog) logging sessions for diagnostics. Verified via plutil -p: MachServices are com.apple.enhancedloggingd.xpc and com.apple.enhancedloggingd.bug-session-status.xpc. Verified via rg scan: no LaunchAgent or LaunchDaemon outside this feature connects to these MachServices.
+    #- enhancedloggingd
+    # Safe to remove: metrickitd is the MetricKit daemon hosting the MetricKit API for app performance metrics. Verified via plutil -p: MachService is com.apple.metrickit.xpc. MetricKit.framework (removed above) hosts this binary. Verified via otool -L on Finder, Dock, loginwindow: none link MetricKit.framework or connect to com.apple.metrickit.xpc.
+    #- metrickitd
+    # Safe to remove: DiagnosticsReporter is the GUI crash/panic report submitter. Verified via plutil -p: binary at /System/Library/CoreServices/Diagnostics Reporter.app; QueueDirectories trigger on /var/db/PanicReporter/ and /var/db/DiagnosticsReporter/; no MachServices registered. Its absence means panic reports are not sent to Apple but does not affect system operation.
+    #- DiagnosticsReporter
+    # Safe to remove: symptomsd-diag is the diagnostics collection sub-process of symptomsd. Verified via plutil -p: binary is /usr/libexec/symptomsd-diag; MachService is com.apple.symptom_diagnostics_collection. This is separate from the main symptomsd daemon (com.apple.symptomsd, NOT in this feature's removal list), which registers the critical HostSpecialPort 27 (com.apple.resource_notify.host). Removing only the -diag variant is safe; the main symptomsd and its networking diagnostics capabilities remain untouched.
+    #- symptomsd-diag
+    # Safe to remove: symptomsd.distributed-agent is the distributed symptom collection agent. Verified via plutil -p: binary is /usr/libexec/symptomsd-distributed; demand-launched by com.apple.symptoms.distributed.launch notification only; no MachServices registered. Independent of the main symptomsd daemon (which is NOT being removed).
+    #- symptomsd.distributed-agent
+    # Safe to remove: mdmclient.agent is the user-session MDM client agent. Verified via plutil -p: binary is /usr/libexec/mdmclient agent; triggered by MDM-specific distributed notifications (CPCloudConfigInfoDidSucceed, CPFetchedCloudConfig, etc.). The enterprise feature removes the system-level com.apple.mdmclient.daemon; this user-session agent is the GUI/user companion. Both are being removed; no MDM enrollment is present on this machine.
+    #- mdmclient.agent
+    # Safe to remove: noticeboard.agent is the user-session Noticeboard notification delivery agent. Verified via plutil -p: subscribes to UserNotificationCenter events for bundle ID com.apple.noticeboard; Noticeboard.framework (removed above) provides the backing binary (nbstated). Verified via rg scan: no kept system binary outside this feature references com.apple.noticeboard MachServices.
+    - noticeboard.agent
+  daemons:
+    # Safe to remove: com.apple.analyticsd is the system-level CoreAnalytics event collection daemon. Verified via plutil -p: IOKit matching trigger on CoreAnalyticsMessenger IOProviderClass; MachServices are com.apple.analyticsd and com.apple.analyticsd.messagetracer. Verified via rg scan: no kept system daemon (outside this feature) depends on com.apple.analyticsd.messagetracer.
+    #- com.apple.analyticsd
+    # Safe to remove: com.apple.rtcreportingd is the Real-Time CoreAnalytics reporting daemon. Verified via plutil -p: binary /usr/libexec/rtcreportingd; sole MachService is com.apple.rtcreportingd; runs as root. Verified via rg scan of all LaunchDaemons: no kept daemon references com.apple.rtcreportingd outside its own plist.
+    #- com.apple.rtcreportingd
+    # Safe to remove: com.apple.wifianalyticsd collects Wi-Fi performance analytics. Verified via plutil -p: triggered by daily and UI bg-tasks; MachService is com.apple.wifianalyticsd. No kept system daemon connects to com.apple.wifianalyticsd.
+    #- com.apple.wifianalyticsd
+    # Safe to remove: com.apple.triald.system is the system-level A/B experiment daemon. Verified via plutil -p: triggered by crashreporter preference-change notification and XPC cellular/Siri/dictation activity timers; MachServices are com.apple.triald.system.*. No kept system daemon depends on com.apple.triald.system.* MachServices.
+    - com.apple.triald.system
+    # Not Safe to remove: com.apple.spindump is the system spindump daemon for sampling hung processes. Verified via plutil -p: MachServices are com.apple.spindump, com.apple.spinreporterd, and com.apple.libquitd. Verified via otool -L /sbin/launchd: launchd does NOT hard-link spindump; it uses the com.apple.spindump Mach port optionally (graceful degradation when absent). com.apple.libquitd is used by ReportCrash to signal processes but ReportCrash (not in removal list) handles its absence via weak bootstrap_look_up. No boot-critical daemon hard-depends on these MachServices.
+    #- com.apple.spindump
+    # Safe to remove: com.apple.SubmitDiagInfo uploads diagnostic reports to Apple. Verified via plutil -p: MachServices are com.apple.OSASubmission.client and com.apple.OSASyncProxy.client; demand-activated. Verified via rg scan: no kept system daemon references com.apple.OSASubmission outside SubmitDiagInfo's own plist.
+    - com.apple.SubmitDiagInfo
+    # Safe to remove: com.apple.diagnosticservicesd is the system diagnostics service host. Verified via plutil -p: binary /System/Library/CoreServices/diagnosticservicesd; MachService is com.apple.diagnosticservicesd; runs as _diagnosticservicesd. Verified via otool -L: links only Foundation, Security, CoreDiagnostics, and libSystem. No kept system daemon connects to com.apple.diagnosticservicesd.
+    #- com.apple.diagnosticservicesd
+    # Safe to remove: com.apple.CrashReporterSupportHelper is the crash report submission helper. Verified via plutil -p: MachService is com.apple.CrashReporterSupportHelper; links CrashReporterSupport.framework and SystemConfiguration.framework. Verified via otool -L /System/Library/CoreServices/ReportCrash: ReportCrash links CrashReporterSupport.framework directly (not CrashReporterSupportHelper). Verified via rg scan: no LaunchDaemon or LaunchAgent outside this feature references com.apple.CrashReporterSupportHelper.
+    #- com.apple.CrashReporterSupportHelper
+    # Safe to remove: com.apple.ecosystemanalyticsd collects Apple ecosystem analytics (device graph, runtime analysis). Verified via plutil -p: triggered by weekly XPC maintenance activities; no external MachService consumers found via rg scan. EcosystemAnalytics.framework (removed above) is its sole framework dependency.
+    - com.apple.ecosystemanalyticsd
+    # Safe to remove: com.apple.osanalytics.osanalyticshelper is the OSAnalytics relay helper for wired Diagnostics connections. Verified via plutil -p: triggered by com.apple.remoteservicediscovery.events (USB/NCM host connection) and job-quiescence; subscribes to com.apple.osanalytics.logRelay RemoteService. No kept system daemon depends on this helper for normal wireless operation.
+    #- com.apple.osanalytics.osanalyticshelper
+    # Safe to remove: com.apple.systemstats.analysis is the systemstats daemon (RunAtLoad, KeepAlive). Verified via plutil -p: MachService is com.apple.systemstats.analysis; binary /usr/sbin/systemstats --daemon. Verified via rg scan: no kept system daemon outside this feature connects to com.apple.systemstats.analysis.
+    #- com.apple.systemstats.analysis
+    # Safe to remove: com.apple.systemstats.daily runs daily systemstats collection. Verified via plutil -p: binary /usr/sbin/systemstats --daily; scheduled calendar interval; no MachServices registered. No kept system daemon depends on it.
+   # - com.apple.systemstats.daily
+    # Safe to remove: com.apple.systemstats.microstackshot_periodic runs periodic microstackshot sampling. Verified via plutil -p: binary /usr/libexec/microstackshot; XPC maintenance activity; no MachServices registered. No kept system daemon depends on it.
+    - com.apple.systemstats.microstackshot_periodic
+    # Safe to remove: com.apple.signpost.signpost_reporter uploads os_signpost interval data to Apple analytics. Verified via plutil -p: binary /usr/libexec/signpost_reporter; XPC maintenance activity; no MachServices registered. No kept system daemon depends on it.
+    #- com.apple.signpost.signpost_reporter
+    # Safe to remove: com.apple.bosreporter is the Bridge OS (T2/SEP) install reporting daemon. Verified via plutil -p: binary at BridgeOSInstallReporting.framework/Resources/bosreporter; MachService is com.apple.bosreporter. This reports T2/bridgeOS firmware update results to Apple analytics; it does not manage the update itself. No kept system daemon depends on com.apple.bosreporter.
+    #- com.apple.bosreporter
+    # Safe to remove: com.apple.logkextloadsd logs kext (kernel extension) load events for telemetry. Verified via plutil -p: binary /usr/libexec/logkextloadsd; scheduled weekly on Tuesday at 14:20; no MachServices registered. This system is Apple Silicon (M5 Max) — third-party kexts do not load; this daemon is functionally inert.
+    #- com.apple.logkextloadsd
+    # Safe to remove: com.apple.csrutil.report reports SIP (System Integrity Protection) configuration to Apple. Verified via plutil -p: binary /usr/bin/csrutil report; scheduled weekly on Thursday at 03:20; no MachServices registered. Removal stops SIP-state telemetry to Apple; does not affect SIP enforcement itself.
+    #- com.apple.csrutil.report
+    # Safe to remove: com.apple.dprivacyd is the system-level differential privacy daemon. Verified via plutil -p: triggered by XPC maintenance activities for report-files maintenance, storage culling, and storage maintenance; no MachServices registered (system variant). No kept system daemon depends on it.
+    - com.apple.dprivacyd
+    # Safe to remove: com.apple.noticeboard.state is the system-level Noticeboard state daemon (nbstated). Verified via plutil -p: MachService is com.apple.noticeboard.state; binary at Noticeboard.framework/Resources/nbstated. Noticeboard.framework (removed above) hosts this binary. Verified via rg scan: no kept system daemon connects to com.apple.noticeboard.state outside this feature.
+    - com.apple.noticeboard.state
+    # Safe to remove: com.apple.statd.notify is rpc.statd, the NFS lock-recovery daemon. Verified via plutil -p: binary /usr/sbin/rpc.statd -n; KeepAlive on PathState /var/db/statd.status; LaunchOnlyOnce. rpc.statd provides NFS lock crash-recovery via NSM protocol and only activates when NFS mounts are present. Verified via plutil -p /System/Library/LaunchDaemons/com.apple.nfsd.plist: nfsd itself is demand-activated only when /etc/exports exists (PathState). This Mac has no /etc/exports and no NFS server role; statd.notify is functionally inert and not a boot dependency.
+    #- com.apple.statd.notify
+    # CRITICAL: com.apple.mdmclient.daemon is DUPLICATE — already listed in the enterprise feature (line 1624) under daemons. Both features attempt to disable the same system MDM daemon (/usr/libexec/mdmclient daemon). This entry here is redundant but harmless (launchctl disable is idempotent). The CRITICAL classification in the enterprise feature applies here too: removing this daemon while MDM enrollment is active would break device management. On a non-enrolled personal Mac (as scoped by this manifest) it is safe. Keeping this entry as-is; executor must handle duplicate gracefully.
+    #- com.apple.mdmclient.daemon
+  pluginkit: []
+  user_containers: []
+  user_prefs: []
+  user_caches: []
+
+# ------------------------------------------------------------------------------
+# BACKGROUND INTELLIGENCE (Duet, Spotlight Knowledge, Biome, Context, Suggestions)
+# ------------------------------------------------------------------------------
+background_intelligence:
+  description: Proactive suggestions, Duet/contextual engine, Biome streams, Spotlight knowledge
+  apps: []
+  helpers: []
+  xpc: []
+  prefpanes: []
+  appex: []
+  mdimporters: []
+  loctables: []
+  frameworks:
+    # Safe to remove: BiomeDSL.framework provides DSL parsing for Biome event streams. Verified via otool scan: no core system binary (Finder, Dock, loginwindow, System Settings) links BiomeDSL.framework. Only BiomeAgent and biomesyncd (both being removed) depend on this framework.
+    - System/Library/PrivateFrameworks/BiomeDSL.framework
+    # Safe to remove: BiomeFoundation.framework is the core Biome event/stream infrastructure. Verified via otool scan: no core system binary hard-links BiomeFoundation.framework. Only biomesyncd and BiomeAgent (both being removed) depend on it.
+    - System/Library/PrivateFrameworks/BiomeFoundation.framework
+    # Safe to remove: BiomePubSub.framework provides pub/sub messaging for Biome streams. Verified via otool scan: no core system binary links BiomePubSub.framework. Only internal Biome components (being removed) depend on it.
+    - System/Library/PrivateFrameworks/BiomePubSub.framework
+    # Safe to remove: BiomeStorage.framework provides local storage for Biome event data. Verified via otool scan: no core system binary links BiomeStorage.framework. Only BiomeAgent and biomesyncd (both being removed) depend on it.
+    - System/Library/PrivateFrameworks/BiomeStorage.framework
+    # Safe to remove: BiomeSync.framework provides sync functionality for Biome streams. Verified via otool scan: no core system binary links BiomeSync.framework. Only biomesyncd (being removed) depends on it.
+    - System/Library/PrivateFrameworks/BiomeSync.framework
+    # Safe to remove: CoreDuetContext.framework provides the Duet context engine for proactive suggestions. Verified via otool scan: no core system binary (Finder, Dock, loginwindow, System Settings, rapportd) links CoreDuetContext.framework. Only coreduetd and ContextStoreAgent (both being removed) depend on it.
+    #- System/Library/PrivateFrameworks/CoreDuetContext.framework
+    # Safe to remove: CoreDuetDaemonProtocol.framework provides XPC protocol for coreduetd. Verified via otool scan: no core system binary links this framework. Only coreduetd (being removed) uses it.
+    #- System/Library/PrivateFrameworks/CoreDuetDaemonProtocol.framework
+  kexts: []
+  input_methods: []
+  coreservices: []
+  assets:
+  launchagent_plists: []
+  launchdaemon_plists: []
+  agents:
+    # Safe to remove: knowledgeconstructiond builds the Spotlight knowledge index. Verified via plutil -p: MachServices are knowledgeconstructiond-related. No core system binary depends on this service.
+    - knowledgeconstructiond
+    # Safe to remove: knowledge-agent is the user-space knowledge indexing agent. Only consumed by Spotlight (managedcorespotlightd being removed).
+    - knowledge-agent
+    # Safe to remove: suggestd provides proactive suggestions. Verified via plutil -p: MachServices are suggestion-specific. No core system binary depends on suggestd.
+    - suggestd
+    # Safe to remove: proactived provides proactive content harvesting. Verified via plutil -p: MachServices are proactive-specific. No core system binary depends on this service.
+    - proactived
+    # Safe to remove: duetexpertd provides Duet expert system suggestions. Verified via plutil -p: MachServices are duet-specific. No core system binary depends on it.
+    - duetexpertd
+    # Safe to remove: spotlightknowledged provides Spotlight search index management. Verified via plutil -p: MachServices are spotlight-specific. No core system binary depends on this service.
+    - spotlightknowledged
+    # Safe to remove: spotlightknowledged.updater is the Spotlight index updater sub-agent. Only consumed by spotlightknowledged (being removed).
+    - spotlightknowledged.updater
+    # Safe to remove: spotlightknowledged.importer imports content into Spotlight index. Only consumed by spotlightknowledged (being removed).
+    - spotlightknowledged.importer
+    # Safe to remove: routined manages routine-based suggestions. Verified via plutil -p: MachServices are routine-specific. No core system binary depends on it.
+    - routined
+    # Safe to remove: intelligentroutingd provides intelligent routing suggestions. Verified via plutil -p: MachServices are routing-specific. No core system binary depends on this service.
+    - intelligentroutingd
+    # Safe to remove: naturallanguaged provides on-device NLP. Verified via plutil -p: MachServices are nl-specific. No core system binary depends on this service.
+    - naturallanguaged
+    # Safe to remove: BiomeAgent is the Biome event stream agent. Verified via plutil -p: only consumed by Biome framework components (being removed).
+    - BiomeAgent
+    # Safe to remove: biomesyncd syncs Biome event data. Verified via plutil -p: only consumed by Biome framework components (being removed).
+    - biomesyncd
+    # Safe to remove: ContextStoreAgent manages contextual suggestions. Verified via plutil -p: only consumed by contextstored (being removed).
+    - ContextStoreAgent
+    # Safe to remove: managedcorespotlightd manages Core Spotlight indexing. Verified via plutil -p: only consumed by Spotlight services (being removed).
+    - managedcorespotlightd
+  daemons:
+    # Safe to remove: coreduetd is the CoreDuet daemon providing context/suggestion services. Verified via plutil -p: LaunchEvents include com.apple.rapport.CompanionLinkDeviceAdded (incoming FROM rapportd, not outgoing). No core system binary depends on coreduetd MachServices.
+    - com.apple.coreduetd
+    # Safe to remove: contextstored provides ContextStore for contextual suggestions. Verified via plutil -p: MachServices are context-specific. No core system binary depends on these services.
+    - com.apple.contextstored
+    # Safe to remove: biomed is the Biome daemon for event stream processing. Verified via plutil -p: MachServices are biome-specific. Only consumed by Biome framework components (being removed).
+    - com.apple.biomed
+    # Safe to remove: ospredictiond provides on-device prediction services. Verified via plutil -p: subscribes to com.apple.coreduetcontext.client_event_stream (internal to this feature). No core system binary depends on this service.
+    - com.apple.ospredictiond
+    # CRITICAL: modelmanagerd is DUPLICATE - already commented out in siri_and_intelligence feature (line 182). This daemon provides com.apple.modelmanager Mach service for ML model orchestration required by Apple Intelligence.
+    # - com.apple.modelmanagerd
+  pluginkit: []
+  user_containers: []
+  user_prefs: []
+  user_caches: []
+
+
+# ------------------------------------------------------------------------------
+# CONTENT CACHE & ASSET DISTRIBUTION
+# ------------------------------------------------------------------------------
+content_cache:
+  description: Content caching, asset distribution (not needed on single machine)
+  apps: []
+  helpers: []
+  xpc:
+    - System/Library/PrivateFrameworks/UARPAssetManager.framework/XPCServices/UARPAssetManagerServiceMobileAsset.xpc
+  prefpanes: []
+  appex: []
+  mdimporters: []
+  loctables: []
+  frameworks:
+    - System/Library/PrivateFrameworks/AssetCacheServices.framework
+  kexts: []
+  input_methods: []
+  coreservices: []
+  assets: []
+  launchagent_plists: []
+  launchdaemon_plists: []
+  agents:
+    - AssetCache.agent
+    - AssetCacheLocatorService
+  daemons:
+    - com.apple.AssetCacheLocatorService
+    - com.apple.AssetCache.builtin
+  pluginkit: []
+  user_containers: []
+  user_prefs: []
+  user_caches: []
+
+# ------------------------------------------------------------------------------
+# INTEL / AMD DEAD CODE (Apple Silicon only — kexts never load)
+# All kexts below have IOKitPersonalities that only match Intel/AMD hardware.
+# Verified via kmutil showloaded on Apple Silicon: none of these kexts are loaded.
+# Removing them from SSV eliminates dead code without affecting system operation.
+# ------------------------------------------------------------------------------
+intel_amd_dead_code:
+  description: Rosetta 2, Intel GPU kexts/bundles, AMD GPU kexts/bundles, x86 daemons
+  apps: []
+  helpers: []
+  xpc: []
+  prefpanes: []
+  appex: []
+  mdimporters: []
+  loctables: []
+  frameworks: []
+  kexts:
+    # Safe to remove: Intel CFL (Coffee Lake) graphics framebuffer driver. IOKit matches Intel integrated GPU hardware only. Never loads on Apple Silicon (AGX GPU used instead).
+    - System/Library/Extensions/AppleIntelCFLGraphicsFramebuffer.kext
+    # Safe to remove: Intel ICL (Ice Lake) graphics driver. Intel-only hardware match. Never loads on Apple Silicon.
+    - System/Library/Extensions/AppleIntelICLGraphics.kext
+    # Safe to remove: Intel ICL Low-Power graphics framebuffer. Intel-only hardware match.
+    - System/Library/Extensions/AppleIntelICLLPGraphicsFramebuffer.kext
+    # Safe to remove: Intel KBL (Kaby Lake) graphics driver. Intel-only hardware match.
+    - System/Library/Extensions/AppleIntelKBLGraphics.kext
+    # Safe to remove: Intel KBL graphics framebuffer. Intel-only hardware match.
+    - System/Library/Extensions/AppleIntelKBLGraphicsFramebuffer.kext
+    # Safe to remove: Intel LPSS DMA Controller. Intel Low-Power Subsystem DMA engine. No Intel chipset on Apple Silicon.
+    - System/Library/Extensions/AppleIntelLpssDmac.kext
+    # Safe to remove: Intel LPSS GSPI (General SPI) controller. Intel chipset only.
+    - System/Library/Extensions/AppleIntelLpssGspi.kext
+    # Safe to remove: Intel LPSS I2C controller. Intel chipset only.
+    - System/Library/Extensions/AppleIntelLpssI2C.kext
+    # Safe to remove: Intel LPSS I2C Controller driver. Intel chipset only.
+    - System/Library/Extensions/AppleIntelLpssI2CController.kext
+    # Safe to remove: Intel LPSS SPI Controller. Intel chipset only.
+    - System/Library/Extensions/AppleIntelLpssSpiController.kext
+    # Safe to remove: Intel LPSS UART common code. Intel chipset only.
+    - System/Library/Extensions/AppleIntelLpssUARTCommon.kext
+    # Safe to remove: Intel LPSS UART v0 driver. Intel chipset only.
+    - System/Library/Extensions/AppleIntelLpssUARTv0.kext
+    # Safe to remove: Intel LPSS UART v1 driver. Intel chipset only.
+    - System/Library/Extensions/AppleIntelLpssUARTv1.kext
+    # Safe to remove: Intel MCE (Machine Check Exception) reporter. Intel CPU error reporting. Apple Silicon uses different error handling.
+    - System/Library/Extensions/AppleIntelMCEReporter.kext
+    # Safe to remove: Intel PCH (Platform Controller Hub) Power Management. Intel chipset only.
+    - System/Library/Extensions/AppleIntelPCHPMC.kext
+    # Safe to remove: Intel Slow Adaptive Clocking. Intel CPU power management feature. Not applicable to Apple Silicon.
+    - System/Library/Extensions/AppleIntelSlowAdaptiveClocking.kext
+    # Safe to remove: AMD Radeon 10000-series (Navi 10) GPU controller. Discrete AMD GPU only. uses Apple GPU (AGXAcceleratorG17X verified via ioreg).
+    - System/Library/Extensions/AMD10000Controller.kext
+    # Safe to remove: AMD Radeon 9500-series GPU controller. Discrete AMD GPU only.
+    - System/Library/Extensions/AMD9500Controller.kext
+    # Safe to remove: AMD Framebuffer driver. Discrete AMD GPU only.
+    - System/Library/Extensions/AMDFramebuffer.kext
+    # Safe to remove: AMD Radeon Service Manager. Discrete AMD GPU only.
+    - System/Library/Extensions/AMDRadeonServiceManager.kext
+    # Safe to remove: AMD Radeon X4000 (Polaris) driver. Discrete AMD GPU only.
+    - System/Library/Extensions/AMDRadeonX4000.kext
+    # Safe to remove: AMD Radeon X4000 Hardware Services. Discrete AMD GPU only.
+    - System/Library/Extensions/AMDRadeonX4000HWServices.kext
+    # Safe to remove: AMD Radeon X5000 (Vega) driver. Discrete AMD GPU only.
+    - System/Library/Extensions/AMDRadeonX5000.kext
+    # Safe to remove: AMD Radeon X5000 Hardware Services. Discrete AMD GPU only.
+    - System/Library/Extensions/AMDRadeonX5000HWServices.kext
+    # Safe to remove: AMD Radeon X6000 (RDNA2) driver. Discrete AMD GPU only.
+    - System/Library/Extensions/AMDRadeonX6000.kext
+    # Safe to remove: AMD Radeon X6000 Framebuffer. Discrete AMD GPU only.
+    - System/Library/Extensions/AMDRadeonX6000Framebuffer.kext
+    # Safe to remove: AMD Radeon X6000 Hardware Services. Discrete AMD GPU only.
+    - System/Library/Extensions/AMDRadeonX6000HWServices.kext
+    # Safe to remove: AMD Support kext (shared AMD GPU code). Discrete AMD GPU only.
+    - System/Library/Extensions/AMDSupport.kext
+  input_methods: []
+  coreservices:
+    # Safe to remove: Rosetta 2 Updater.app checks for and installs Rosetta runtime updates. User confirmed no Intel apps needed; Rosetta runtime is also being removed.
+    - System/Library/CoreServices/Rosetta 2 Updater.app
+    # Safe to remove: Rosetta.flplugin is a Setup Assistant plugin that prompts to install Rosetta during first-run setup. Not needed if Rosetta not used.
+    - System/Library/CoreServices/SetupAssistantPlugins/Rosetta.flplugin
+  assets: []
+  ssv_extra_paths:
+    # Safe to remove: Rosetta runtime directory. Contains oahd, oahd-helper, translate_tool, and the x86->ARM translation engine. User confirmed no Intel apps needed.
+    - usr/libexec/rosetta
+    # Safe to remove: ucupdate is Intel CPU microcode update utility. Has LimitLoadToHardware.optional.x86_64: 1 in its LaunchDaemon plist, meaning it never executes on Apple Silicon. Verified via plutil -p /System/Library/LaunchDaemons/com.apple.ucupdate.plist.
+    - usr/libexec/ucupdate
+    # Safe to remove: displaypolicyd manages Intel display configuration policies. Has LimitLoadToHardware.optional.x86_64: 1 in its LaunchDaemon plist, preventing execution on Apple Silicon. Verified via plutil -p /System/Library/LaunchDaemons/com.apple.displaypolicyd.plist.
+    - usr/libexec/displaypolicyd
+    # Safe to remove: DumpGPURestart is triggered by IOAccelGPURestartReport and IOGPURestartReport IOKit events, which are Intel/AMD GPU specific. Apple Silicon GPUs (AGX) use different internal reporting via IOReport channels (GPU Restart Count). Verified via ioreg: AGXAcceleratorG17X present, IOAccelGPURestartReport absent.
+    - System/Library/Frameworks/OpenGL.framework/Versions/A/Libraries/DumpGPURestart
+    # Safe to remove: ReportGPURestart is user-agent counterpart to DumpGPURestart for Intel/AMD GPU crash reporting. Already disabled by default (Disabled: true in its LaunchAgent plist). Apple Silicon uses different crash reporting path.
+    - System/Library/Frameworks/OpenGL.framework/Versions/A/Libraries/ReportGPURestart
+  launchagent_plists: []
+  launchdaemon_plists: []
+  agents:
+    # Safe to remove: ReportGPURestart agent is already disabled (Disabled: true in plist) and only handles Intel/AMD GPU restart events. Verified via plutil -p /System/Library/LaunchAgents/com.apple.ReportGPURestart.plist.
+    - ReportGPURestart
+  daemons:
+    # Safe to remove: oahd is the Rosetta 2 helper daemon providing com.apple.oahd Mach service for x86 translation. With Rosetta runtime removed and user confirming no Intel apps needed, this daemon performs no useful work.
+    - com.apple.oahd
+    # Safe to remove: ucupdate daemon updates Intel CPU microcode. Its plist has LimitLoadToHardware.optional.x86_64: 1, so it never runs on Apple Silicon. Verified via plutil -p.
+    - com.apple.ucupdate
+    # Safe to remove: displaypolicyd daemon manages Intel display policies. Its plist has LimitLoadToHardware.optional.x86_64: 1, so it never runs on Apple Silicon. Verified via plutil -p.
+    - com.apple.displaypolicyd
+    # Safe to remove: DumpGPURestart daemon is triggered by IOKit events IOGPURestartReport and IOAccelGPURestartReport, which are Intel/AMD GPU specific. Apple Silicon uses AGXAccelerator which has different crash reporting. Verified via plutil -p LaunchDaemon plist and ioreg showing AGXAcceleratorG17X but no IOAccelGPURestartReport.
+    - com.apple.DumpGPURestart
+  pluginkit: []
+  user_containers: []
+  user_prefs: []
+  user_caches: []
+
+# ------------------------------------------------------------------------------
+# NON-ENGLISH INPUT METHODS
+# KEEP: CharacterPalette, EmojiFunctionRowIM, PluginIM, PressAndHold, DictationIM
+# ------------------------------------------------------------------------------
+non_english_input_methods:
+  description: Non-English input methods — Japanese, Korean, Chinese, Tamil, Vietnamese, etc.
+  apps: []
+  helpers: []
+  xpc: []
+  prefpanes: []
+  appex: []
+  mdimporters: []
+  loctables: []
+  frameworks:
+    - System/Library/PrivateFrameworks/CoreChineseEngine.framework
+  kexts: []
+  input_methods:
+    - System/Library/Input Methods/50onPaletteServer.app
+    - System/Library/Input Methods/AinuIM.app
+    - System/Library/Input Methods/JapaneseIM-KanaTyping.app
+    - System/Library/Input Methods/JapaneseIM-RomajiTyping.app
+    - System/Library/Input Methods/KoreanIM.app
+    - System/Library/Input Methods/SCIM.app
+    - System/Library/Input Methods/TCIM.app
+    - System/Library/Input Methods/TYIM.app
+    - System/Library/Input Methods/TamilIM.app
+    - System/Library/Input Methods/TransliterationIM.app
+    - System/Library/Input Methods/VietnameseIM.app
+    #- System/Library/Input Methods/Assistive Control.app
+  coreservices:
+    - System/Library/PrivateFrameworks/CoreChineseEngine.framework/Versions/A/SharedSupport/CIMFindInputCodeTool.app
+  assets: []
+  launchagent_plists: []
+  launchdaemon_plists: []
+  agents: []
+  daemons: []
+  pluginkit: []
+  user_containers: []
+  user_prefs: []
+  user_caches: []
+
+
+# ------------------------------------------------------------------------------
+# ENTERPRISE: MDM, KERBEROS, MANAGED CLIENT, CLASSROOM, COVERAGE
+# ------------------------------------------------------------------------------
+enterprise:
+  description: MDM, enterprise SSO, Kerberos, managed devices, Classroom, coverage
+  apps: []
+  helpers:
+    - System/Library/PrivateFrameworks/AppSSO.framework/Support/AppSSOAgent.app
+    - System/Library/PrivateFrameworks/AppSSOKerberos.framework/Support/KerberosMenuExtra.app
+    - System/Library/PrivateFrameworks/EAP8021X.framework/Support/eaptlstrust.app
+  xpc: []
+  prefpanes:
+    - ClassKitPreferencePane.prefPane
+    - ClassroomSettings.prefPane
+  appex:
+    - CoverageSettings.appex
+    - ProfilesSettingsExt.appex
+    - ProfilesSettingsIntents.appex
+  mdimporters: []
+  loctables: []
+  frameworks:
+    - System/Library/PrivateFrameworks/AppSSO.framework
+    - System/Library/PrivateFrameworks/AppSSOCore.framework
+    - System/Library/PrivateFrameworks/AppSSOKerberos.framework
+    - System/Library/PrivateFrameworks/AppSSOUI.framework
+    - System/Library/Frameworks/ManagedAppDistribution.framework
+  kexts: []
+  input_methods: []
+  coreservices:
+    - System/Library/CoreServices/ManagedClient.app
+    - System/Library/CoreServices/MDMMigrationTrampoline.app
+    - System/Library/CoreServices/Coverage Details.app
+    - System/Library/CoreServices/Applications/Directory Utility.app
+  assets: []
+  launchagent_plists: []
+  launchdaemon_plists: []
+  agents:
+    - AppSSOAgent
+    - ManagedClientAgent.agent
+    - ManagedClientAgent.enrollagent
+    # CRITICAL: ManagedSettingsAgent provides com.apple.ManagedSettings.effective-settings.changed event consumed by dmd, lockoutagent, and UsageTrackingAgent.
+    # These agents are NOT in the removal list (dmd handles Device Management for non-MDM purposes, lockoutagent handles screen lock UI).
+    # Verified via: plutil -p on /System/Library/LaunchAgents/com.apple.dmd.agent.plist, com.apple.lockoutagent.plist, com.apple.UsageTrackingAgent.plist
+    # All three subscribe to com.apple.ManagedSettings.effective-settings.changed with SettingsGroups filters.
+    # Removing ManagedSettingsAgent breaks Device Management daemon integration for Screen Time and system management.
+    # - ManagedSettingsAgent
+    - managedappdistributionagent
+  daemons:
+    - com.apple.mdmclient.daemon
+    - com.apple.mdmclient.daemon.runatboot
+    - com.apple.ManagedClient
+    - com.apple.ManagedClient.enroll
+    - com.apple.ManagedClient.mechanism
+    - com.apple.ManagedClient.startup
+  pluginkit: []
+  user_containers: []
+  user_group_containers:
+    # Safe to remove: group.com.apple.NetworkAuthorization.ServerMarkers is the enterprise network auth shared container (MDM stack removed).
+    - group.com.apple.NetworkAuthorization.ServerMarkers
+  user_prefs: []
+  user_caches: []
+# ------------------------------------------------------------------------------
+# SHARING & AIRDROP SERVICES (non-Continuity)
+# ------------------------------------------------------------------------------
+sharing:
+  description: Sharing services, social layer, AirDrop focus controls
+  apps: []
+  helpers:
+    - System/Library/PrivateFrameworks/ShareServicesCore.framework/Versions/A/PlugIns/PhotosPluginAddToPhotos.appex
+  xpc: []
+  prefpanes: []
+  appex:
+    - Sharing.appex
+    - SharingIntents.appex
+  mdimporters: []
+  loctables: []
+  frameworks:
+    - System/Library/PrivateFrameworks/ShareServicesCore.framework
+    - System/Library/Frameworks/Social.framework
+    - System/Library/Frameworks/SharedWithYouCore.framework
+  kexts: []
+  input_methods: []
+  coreservices: []
+  assets: []
+  launchagent_plists: []
+  launchdaemon_plists: []
+  agents:
+    # CRITICAL: sharingd provides essential XPC services including AirDrop (com.apple.sharing.airdrop.service), Handoff advertising/scanning (com.apple.sharing.handoff.*), and AutoUnlock AuthenticationHints (com.apple.AutoUnlock.AuthenticationHintsProvider). Verified via: plutil -p /System/Library/LaunchAgents/com.apple.sharingd.plist showed 14 MachServices. Disabling breaks AirDrop, Handoff, and Apple Watch unlock functionality.
+    # - sharingd
+    - sociallayerd
+    - synapse.contentlinkingd
+  daemons: []
+  pluginkit: []
+  user_containers: []
+  user_prefs: []
+  user_caches: []
+
+# ------------------------------------------------------------------------------
+# SCREEN TIME & FAMILY SHARING
+# ControlCenter links FamilyControls.framework — framework stays.
+# ------------------------------------------------------------------------------
+screen_time_family:
+  description: Screen Time usage limits, Family Sharing, parental controls
+  apps: []
+  helpers:
+  xpc: []
+  prefpanes:
+    - ScreenTime.prefPane
+    - FamilySharingPrefPane.prefPane
+  appex:
+    - ScreenTimePreferencesExtension.appex
+    - FamilySettings.appex
+    - FamilyIntents.appex
+    - FamilyOutOfProcessUIExtension.appex
+    - ClassKitSettings.appex
+    - ClassKitAppIntents.appex
+    - ClassroomSettings.appex
+    - ClassroomDeviceExpert.appex
+    - AskToExtension.appex
+    - AskToTestResponseUIExtension.appex
+    - AskToViewExtension.appex
+  mdimporters: []
+  loctables: []
+  frameworks:
+    - System/Library/PrivateFrameworks/ScreenTimeSettingsFoundation.framework
+    - System/Library/PrivateFrameworks/FamilyCircle.framework
+    - System/Library/PrivateFrameworks/FamilyNotification.framework
+    - System/Library/PrivateFrameworks/ClassKitNotificationUI.framework
+    - System/Library/Frameworks/ClassKit.framework
+    - System/Library/Frameworks/ClassKitUI.framework
+    - System/Library/Frameworks/FamilyControls.framework
+    - System/Library/Frameworks/ScreenTime.framework
+    - System/Library/Frameworks/DeviceActivity.framework
+    # CRITICAL: ManagedSettings.framework contains the ManagedSettingsAgent binary (verified: no separate dylib exists).
+    # ManagedSettingsAgent publishes com.apple.ManagedSettings.effective-settings.changed event consumed by:
+    # - dmd (/usr/libexec/dmd) - Device Management daemon for non-MDM purposes
+    # - lockoutagent (/System/Library/CoreServices/lockoutagent) - Screen lock UI
+    # - UsageTrackingAgent - Usage tracking daemon
+    # Verified via: plutil -p on LaunchAgent plists shows all three subscribe to this event.
+    # Removal breaks device management integration and screen lock functionality.
+    # Note: dmd and lockoutagent link ManagedSettingsObjC.framework (PRIVATE, not in removal list), but
+    # they require the EVENT PUBLISHER (ManagedSettingsAgent) to function correctly.
+    # See also: enterprise feature line 1684-1689 where ManagedSettingsAgent is already commented CRITICAL.
+    # - System/Library/Frameworks/ManagedSettings.framework
+    - System/Library/Frameworks/_DeviceActivity_SwiftUI.framework
+    - System/Library/Frameworks/_ManagedAppDistribution_SwiftUI.framework
+  kexts: []
+  input_methods: []
+  coreservices:
+    - System/Library/CoreServices/Screen Time.app
+    - System/Library/CoreServices/Family.app
+    - System/Library/CoreServices/FamilyExtensionHost.app
+  assets: []
+  launchagent_plists: []
+  launchdaemon_plists:
+    - com.apple.familycontrols
+  agents:
+    - ScreenTimeAgent
+    - ScreenTimeSettingsAgent
+    - familycircled
+    - familycontrols.useragent
+    - familynotificationd
+    - FamilyControlsAgent
+    - askpermissiond
+    - parentalcontrols.check
+    - macos.studentd
+    - asktod
+    - AskPermissionUI
+  daemons:
+    - com.apple.familycontrols
+  pluginkit:
+    - com.apple.Screen-Time-Settings.extension
+    - com.apple.Family-Settings.extension
+    - com.apple.ClassKit-Settings.extension
+    - com.apple.Classroom-Settings.extension
+    - com.apple.Coverage-Settings.extension
+  user_containers:
+    - com.apple.ScreenTimeSettingsAgent
+  user_group_containers:
+    - group.com.apple.ScreenTime
+    - group.com.apple.DeviceActivity
+    - group.com.apple.FamilyControls
+    # NOTE: group.com.apple.ManagedSettings is intentionally NOT removed — dmd and lockoutagent are kept running and write to it.
+  user_prefs:
+    - com.apple.ScreenTime
+  user_caches: []
+
+# ------------------------------------------------------------------------------
+# FOLLOW-UP, NOTICEBOARD, AMS ENGAGEMENT
+# ------------------------------------------------------------------------------
+follow_up:
+  description: CoreFollowUp iCloud notifications, Noticeboard alerts, AMS engagement
+  apps: []
+  helpers:
+    - System/Library/PrivateFrameworks/Noticeboard.framework/Versions/A/Resources/nbagent.app
+    - System/Library/PrivateFrameworks/AppleMediaServicesUI.framework/Versions/A/Resources/AMSEngagementViewService.app
+  xpc: []
+  prefpanes: []
+  appex:
+    - FollowUpSettingsExtension.appex
+    - ConfigurationProfilesFollowUpExtension.appex
+    - ComposeReviewExtension.appex
+  mdimporters: []
+  loctables: []
+  frameworks:
+  kexts: []
+  input_methods: []
+  coreservices: []
+  assets: []
+  launchagent_plists: []
+  launchdaemon_plists: []
+  agents:
+    - followupd
+    - FollowUpUI
+    - noticeboard.agent
+  daemons:
+    - com.apple.noticeboard.state
+  pluginkit: []
+  user_containers: []
+  user_prefs: []
+  user_caches: []
+
+# ------------------------------------------------------------------------------
+# MISCELLANEOUS DAEMONS: ARKit, Sync, DataAccess, Exchange, Lock/Misc
+# ------------------------------------------------------------------------------
+misc_daemons:
+  description: Miscellaneous agents with no specific feature app grouping
+  apps: []
+  helpers:
+    - System/Library/PrivateFrameworks/SyncServicesUI.framework/Versions/A/Resources/Conflict Resolver.app
+    - System/Library/PrivateFrameworks/SyncServicesUI.framework/Versions/A/Resources/syncuid.app
+    - System/Library/PrivateFrameworks/AmbientDisplay.framework/Versions/A/Resources/Calibration Assistant.app
+    - System/Library/PrivateFrameworks/AutomationMode.framework/AutomationModeUI.app
+  xpc: []
+  prefpanes: []
+  appex: []
+  mdimporters: []
+  loctables: []
+  frameworks:
+    - System/Library/PrivateFrameworks/SyncServicesUI.framework
+    - System/Library/PrivateFrameworks/DataAccess.framework
+    - System/Library/PrivateFrameworks/ExchangeSync.framework
+    - System/Library/PrivateFrameworks/AmbientDisplay.framework
+    - System/Library/Frameworks/ARKit.framework
+    - System/Library/Frameworks/_ARKit_SwiftUI.framework
+    - System/Library/PrivateFrameworks/ARKitCore.framework
+    - System/Library/PrivateFrameworks/ARKitDaemon.framework
+    - System/Library/PrivateFrameworks/ARKitFoundation.framework
+    - System/Library/PrivateFrameworks/ARKitNetworking.framework
+  kexts: []
+  input_methods: []
+  coreservices:
+    - System/Library/CoreServices/WindowManagerShowDesktopEducation.app
+    - System/Library/CoreServices/StageManagerOnboarding.app
+    - System/Library/CoreServices/OBEXAgent.app
+    - System/Library/CoreServices/WorkoutAlert-Mac.app
+    - System/Library/CoreServices/WatchFaceAlert.app
+    - System/Library/CoreServices/liquiddetectiond.app
+    - System/Library/CoreServices/NowPlayingTouchUI.app
+    - System/Library/CoreServices/SpacesTouchBarAgent.app
+    - System/Library/CoreServices/WidgetKit Simulator.app
+  assets: []
+  launchagent_plists: []
+  launchdaemon_plists: []
+  agents:
+    - arkitd
+    - dataaccess.dataaccessd
+    - exchange.exchangesyncd
+    - syncservices.SyncServer
+    - syncservices.uihandler
+    - coreimportd
+    # - coredatad # CRITICAL SYSTEM DAEMON: breaks CoreData background sync
+    - scrod
+    - ndoagent
+    # - avatarsd # Duplicated in memoji/avatars
+    - replicatord
+    - lockdownmoded
+    - mobiletimerd
+    - localizationswitcherd
+    - progressd
+    - liveactivitiesd
+    - milod
+    # - swcd 
+    # chronod drives widgets (World Clock, Batteries, etc.) — kept running but widgets cleared via optimize.sh apply_widgets_disable
+    #- chronod
+    - frauddefensed
+    #- swtransparencyd
+    #- transparencyd
+    - linkd
+    - donotdisturbd
+    - StatusKitAgent
+    #- recentsd
+    - reversetemplated
+    - uarppersonalizationd
+    - UserPictureSyncAgent
+    - webinspectord
+    - webkit.webpushd
+    - DataDetectorsLocalSources
+    - controlstrip
+    - powerchime
+    # - accountsd # CRITICAL SYSTEM DAEMON: breaks Apple ID and User Accounts
+    - businessservicesd
+    - ciphermld
+    - devicecheckd
+    - gputoolsserviced
+    - keychainsharingmessagingd
+    - nexusd
+    - searchtoold
+    - securityuploadd
+    - seserviced
+    - talagent
+    - textcomposerd
+    - transparencyStaticKey
+    - TextInputSwitcher
+    - AirPortBaseStationAgent
+    - ContainerMigrationService
+    # - avconferenced # AV framework required even if FaceTime is unused
+  daemons: []
+  pluginkit: []
+  user_containers: []
+  user_prefs:
+    # Widget instances and WidgetAllowList — cleared here so a full debloat run removes them.
+    # optimize.sh apply_widgets_disable also clears these at runtime.
+    - com.apple.notificationcenterui
+  user_caches: []
+
+# ------------------------------------------------------------------------------
+# PLIST PATCHES (in-place SSV rewrites — not deletions)
+# Handled by a dedicated patch block in the executor.
+# ------------------------------------------------------------------------------
+patches:
+  tcc_service_list:
+    path: System/Library/ExtensionKit/Extensions/SecurityPrivacyExtension.appex/Contents/Resources/TCCServiceList.plist
+    action: rewrite
+    keep_services:
+      - PrivacyLocationService
+      - kTCCServiceBluetoothAlways
+      - PrivacyLocalNetworkService
+      - TCCServiceMicrophone
+      - TCCServiceCamera
+      - TCCServiceSystemPolicyAllFiles
+      - TCCServiceAccessibility
+      - kTCCServiceListenEvent
+      - PrivacyRecordingService
+      - kTCCServiceWebBrowserPublicKeyCredential
+      - TCCServiceAutomation
+      - TCCServiceDeveloperTools
+      - PrivacyPasteboardService
+      - PrivacyAnalyticsService
+      - PrivacyAdvertisingService
+    backup: /tmp/_tcclist_original.plist
+
+  section_service_list:
+    path: System/Library/ExtensionKit/Extensions/SecurityPrivacyExtension.appex/Contents/Resources/SectionServiceList.plist
+    action: rewrite
+    backup: /tmp/_sectionlist_original.plist
+
+  finder_menubar_nib:
+    path: System/Library/CoreServices/Finder.app/Contents/Resources/Base.lproj/MenuBar.nib
+    action: binary_patch
+    replacements:
+      - from: "cmdGoToICloud:"
+        to:   "cmdGoToICloud_"
+      - from: "cmdGoToDataSeparatedICloud:"
+        to:   "cmdGoToDataSeparatedICloud_"
+    constraint: same_file_size
+
+  storeuid_info_plist:
+    # Remove CFBundleVisibleComponentName from storeuid.app so AppKit does not insert
+    # an "App Store" item into the Apple (⌘) menu. storeuid itself is kept (CommerceKit
+    # still uses it) but without this key NSApplication cannot resolve it as "App Store"
+    # via NSWorkspace URLForApplicationWithBundleIdentifier.
+    path: System/Library/PrivateFrameworks/CommerceKit.framework/Versions/A/Resources/storeuid.app/Contents/Info.plist
+    action: plist_delete_key
+    key: CFBundleVisibleComponentName
+    backup: /tmp/_storeuid_info_original.plist
