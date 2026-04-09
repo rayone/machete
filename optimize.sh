@@ -39,6 +39,11 @@
 #   network      TCP tuning, sysctl, Chrome DoH, DNS flush
 #   updates      Apple SU, Chrome Keystone, Edge updater, AirDrop, Handoff
 #   security     SMB guest, SSH, Remote Events, Gatekeeper, TCC, mDNS, pfctl
+#
+# DEPENDENCIES:
+#   - PlistBuddy (/usr/libexec/PlistBuddy) — used by apply_chrome_doh()
+#     Note: Bundled with macOS base system. If missing, chrome_doh will fail gracefully.
+#   - No Xcode Command Line Tools required (python3 dependency removed)
 # ==============================================================================
 
 set -uo pipefail
@@ -106,6 +111,27 @@ warn()   { echo "  [$(ts)] WARN $*"; }
 err()    { echo "  [$(ts)] ERR  $*"; }
 header() { echo ""; echo "======================================================================"; echo "  $*"; echo "======================================================================"; }
 sep()    { echo "  ──────────────────────────────────────────────────────────────────"; }
+
+# ---------------------------------------------------------------------------
+# URL encoding (pure bash, no python3/CLT dependency)
+# ---------------------------------------------------------------------------
+url_encode() {
+    local string="$1"
+    local strlen=${#string}
+    local encoded=""
+    local pos c o
+
+    for (( pos=0 ; pos<strlen ; pos++ )); do
+        c=${string:$pos:1}
+        case "$c" in
+            [-_.~a-zA-Z0-9/] ) o="$c" ;;
+            ' ' ) o='%20' ;;
+            * ) printf -v o '%%%02X' "'$c" ;;
+        esac
+        encoded+="$o"
+    done
+    echo "$encoded"
+}
 
 # ---------------------------------------------------------------------------
 # Root check (not needed for --dry-run or --list)
@@ -850,9 +876,9 @@ apply_dock_strip() {
     [ "$DRY_RUN" = true ] && return 0
     dfw write com.apple.dock persistent-apps -array
     for _app in "${MACHETE_DOCK_APPS[@]}"; do
-        # Encode spaces as %20 for the CFURLString
+        # Encode spaces as %20 for the CFURLString (pure bash, no python3/CLT dependency)
         local _url
-        _url="file://$(python3 -c "import urllib.parse, sys; print(urllib.parse.quote(sys.argv[1]))" "$_app")/"
+        _url="file://$(url_encode "$_app")/"
         dfw write com.apple.dock persistent-apps -array-add \
             "<dict><key>tile-data</key><dict><key>file-data</key><dict><key>_CFURLString</key><string>${_url}</string><key>_CFURLStringType</key><integer>15</integer></dict></dict><key>tile-type</key><string>file-tile</string></dict>"
     done

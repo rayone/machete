@@ -145,6 +145,10 @@
 #   PerfPowerServicesExtended / PerfPowerServices: Battery pane depends on these — NEVER disable.
 #   coreaudiod / audiomxd / AirPlayXPCHelper / bluetoothaudiod / audioanalyticsd:
 #               disabling any causes audiomxd 80% CPU spin — NEVER touch.
+#   AppleCentauriAlpha/Beta/Control + centaurid: Studio Display driver extensions — NEVER disable.
+#   triald / triald.system: A/B feature flag daemon — KEEP (ReportCrash weak-link, prevents bad config lockout).
+#   SubmitDiagInfo: Diagnostic relay dependency — KEEP (osanalyticshelper requires for log relay).
+#   microstackshot: Instruments/Activity Monitor dependency — KEEP for performance diagnostics.
 # ==============================================================================
 
 # ------------------------------------------------------------------------------
@@ -1945,6 +1949,73 @@ telemetry:
     #- com.apple.statd.notify
     # CRITICAL: com.apple.mdmclient.daemon is DUPLICATE — already listed in the enterprise feature (line 1624) under daemons. Both features attempt to disable the same system MDM daemon (/usr/libexec/mdmclient daemon). This entry here is redundant but harmless (launchctl disable is idempotent). The CRITICAL classification in the enterprise feature applies here too: removing this daemon while MDM enrollment is active would break device management. On a non-enrolled personal Mac (as scoped by this manifest) it is safe. Keeping this entry as-is; executor must handle duplicate gracefully.
     #- com.apple.mdmclient.daemon
+  pluginkit: []
+  user_containers: []
+  user_prefs: []
+  user_caches: []
+
+# ------------------------------------------------------------------------------
+# TELEMETRY SAFE — DIAGNOSTICS PRESERVED
+# VERIFIED SAFE: Only pure upload telemetry. All diagnostic infrastructure intact.
+# Risk analysis: adprivacyd, inputanalyticsd, dprivacyd, ecosystemanalyticsd,
+# feedbackd, proactiveeventtrackerd, UsageTrackingAgent, wifianalyticsd — ZERO system deps.
+# Do NOT add: triald, SubmitDiagInfo, microstackshot, audioanalyticsd (see header).
+# ------------------------------------------------------------------------------
+telemetry_safe:
+  description: Pure Apple telemetry upload daemons — diagnostics preserved
+  apps: []
+  helpers: []
+  xpc: []
+  prefpanes: []
+  appex:
+    - TelemetryAggregator.appex
+    - BiomeSELFIngestor.appex
+    - GMSSELFIngestor.appex
+    - UnilogTelemetryWorker.appex
+    - AssetMetricsExtension.appex
+    - SecurityImprovementsExtension.appex
+    - BitacoraWorker.appex
+    - PRIMLCKPreemptivePing.appex
+    - PnROnDeviceWorker.appex
+    - PnRCarPlayOnDeviceWorker.appex
+    - RepackagingWorker.appex
+  mdimporters: []
+  loctables: []
+  frameworks:
+    - System/Library/PrivateFrameworks/CloudTelemetry.framework
+    - System/Library/PrivateFrameworks/UsageTracking.framework
+    - System/Library/PrivateFrameworks/EcosystemAnalytics.framework
+    - System/Library/PrivateFrameworks/Noticeboard.framework
+  kexts: []
+  input_methods: []
+  coreservices:
+    - System/Library/CoreServices/Applications/Feedback Assistant.app
+  assets:
+    - SplunkRecords
+    - analytics
+  launchagent_plists: []
+  launchdaemon_plists: []
+  agents:
+    # VERIFIED: Zero system dependencies. Pure telemetry upload only.
+    - ap.adprivacyd
+    - inputanalyticsd
+    - UsageTrackingAgent
+    - feedbackd
+    - dprivacyd
+    - proactiveeventtrackerd
+    - noticeboard.agent
+    - ap.promotedcontentd
+    - loginwindow.LWWeeklyMessageTracer
+    - ReportGPURestart
+    - appleseed.seedusaged
+    - appleseed.seedusaged.postinstall
+    - betaenrollmentagent
+  daemons:
+    # VERIFIED: Zero diagnostics dependencies. Pure telemetry upload only.
+    - com.apple.ecosystemanalyticsd
+    - com.apple.dprivacyd
+    - com.apple.noticeboard.state
+    - com.apple.wifianalyticsd
   pluginkit: []
   user_containers: []
   user_prefs: []
