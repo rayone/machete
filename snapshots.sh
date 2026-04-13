@@ -8,20 +8,13 @@
 #   sudo ./snapshots.sh delete <uuid> # Delete specific snapshot
 #   sudo ./snapshots.sh delete-all   # Delete all but current boot
 #
-# WHAT THIS DOES:
-#   1. Lists all APFS snapshots on the system volume
-#   2. Identifies current boot snapshot (protected)
-#   3. Allows safe deletion of non-boot snapshots
-#
 # WARNING:
 #   - Cannot delete the current boot snapshot
 #   - Deleting restore snapshots removes rollback points
-#   - Some snapshots may be OS-managed (auto-created)
 # ==============================================================================
 
 set -uo pipefail
 
-# ── Colour helpers ────────────────────────────────────────────────────────────
 RED=$'\033[0;31m'; GREEN=$'\033[0;32m'; YELLOW=$'\033[1;33m'; CYAN=$'\033[0;36m'; BOLD=$'\033[1m'; RESET=$'\033[0m'
 ok()   { echo "${GREEN}  OK   $*${RESET}"; }
 warn() { echo "${YELLOW}  WARN $*${RESET}"; }
@@ -29,40 +22,41 @@ err()  { echo "${RED}  ERR  $*${RESET}"; }
 log()  { echo "  ...  $*"; }
 die()  { err "$*"; exit 1; }
 
-# ── Must be root ───────────────────────────────────────────────────────────────
 if [ "$(id -u)" -ne 0 ]; then
     die "Must be run as root: sudo $0"
 fi
 
-# ── Find volume with snapshots ─────────────────────────────────────────────────
-# On modern macOS, snapshots can be on either System or Data volume.
-# We look for volumes that have snapshots.
-log "Detecting volume with snapshots..."
+log "Detecting system volume..."
 
-SNAP_VOL=""
-for vol in $(diskutil apfs list 2>/dev/null | grep -E "APFS Volume Disk.*Role.*(System|Data)" | awk '{for(i=1;i<=NF;i++) if($i ~ /^disk[0-9]/) {print $i; break}}'); do
-    if diskutil apfs listSnapshots "$vol" 2>/dev/null | grep -q "^\+--"; then
-        SNAP_VOL="$vol"
-        break
-    fi
-done
-
-if [ -z "$SNAP_VOL" ]; then
-    # Fallback: find any APFS volume
-    SNAP_VOL=$(diskutil apfs list 2>/dev/null \
-        | grep -E "APFS Volume Disk.*Role.*(System|Data)" \
-        | head -1 | awk '{for(i=1;i<=NF;i++) if($i ~ /^disk[0-9]/) {print $i; exit}}')
+SYSTEM_ID=$(diskutil apfs list 2>/dev/null \
+    | awk '/APFS Volume Disk.*Role.*System/{
+        for(i=1;i<=NF;i++) if($i ~ /^disk[0-9]/) {print $i; exit}
+    }')
+if [ -z "$SYSTEM_ID" ]; then
+    SYSTEM_ID=$(diskutil list 2>/dev/null \
+        | awk '/APFS Volume [^-]/{id=$NF} /APFS Snapshot/{print id; exit}')
 fi
 
-[ -z "$SNAP_VOL" ] && die "Could not find APFS volume"
-SYSTEM_DEV="/dev/$SNAP_VOL"
-CONTAINER=$(echo "$SNAP_VOL" | sed 's/s[0-9]*$//')
+[ -z "$SYSTEM_ID" ] && die "Could not find system volume"
+SYSTEM_DEV="/dev/$SYSTEM_ID"
+CONTAINER=$(echo "$SYSTEM_ID" | sed 's/s[0-9]*$//')
+SNAP_SLICE=$(diskutil list "$CONTAINER" 2>/dev/null | awk '/APFS Snapshot/{print $NF; exit}')
 
-log "  Volume: $SYSTEM_DEV"
+log "  System volume: $SYSTEM_DEV"
+log "  Snapshot slice: ${SNAP_SLICE:-(not found)}"
 
-# ── Get snapshots ──────────────────────────────────────────────────────────────
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SNAP_META="$SCRIPT_DIR/snapshot-metadata.tsv"
+
 get_snapshots() {
-    diskutil apfs listSnapshots "$SNAP_VOL" 2>/dev/null
+    local snap_data
+    snap_data=$(diskutil apfs listSnapshots "$SYSTEM_ID" 2>/dev/null)
+    if [ -z "$snap_data" ] || echo "$snap_data" | grep -q "Error"; then
+        if [ -n "$SNAP_SLICE" ]; then
+            snap_data=$(diskutil apfs listSnapshots "$SNAP_SLICE" 2>/dev/null)
+        fi
+    fi
+    echo "$snap_data"
 }
 
 parse_snapshots() {
@@ -90,12 +84,11 @@ parse_snapshots() {
             _cur_name="${BASH_REMATCH[1]}"
         elif [[ "$line" =~ XID:[[:space:]]+([0-9]+) ]]; then
             _cur_xid="${BASH_REMATCH[1]}"
-        elif [[ "$line" =~ "Estimated Size"[[:space:]]*:[[:space:]]*(.+) ]]; then
+        elif [[ "$line" =~ "Purgeable"[[:space:]]*:[[:space:]]*(.+) ]]; then
             _cur_size="${BASH_REMATCH[1]}"
         fi
     done <<< "$snap_data"
     
-    # Don't forget last snapshot
     if [ -n "$_cur_uuid" ]; then
         SNAP_UUIDS+=("$_cur_uuid")
         SNAP_NAMES+=("$_cur_name")
@@ -109,22 +102,10 @@ find_boot_snapshot() {
     echo "$snap_data" | grep -B1 "Will root to" | grep -E "^\+--" | awk '{print $2}'
 }
 
-format_size() {
-    local size="$1"
-    if [ -z "$size" ]; then
-        echo "-"
-    elif [[ "$size" =~ ([0-9]+)\ ([KMG])B ]]; then
-        local num="${BASH_REMATCH[1]}"
-        local unit="${BASH_REMATCH[2]}"
-        case "$unit" in
-            K) printf "%.0f KB" "$num" ;;
-            M) printf "%.0f MB" "$num" ;;
-            G) printf "%.1f GB" "$num" ;;
-            *) echo "$size" ;;
-        esac
-    else
-        echo "$size"
-    fi
+_meta_lookup() {
+    local uuid="$1" field="$2"
+    [ -f "$SNAP_META" ] || return
+    awk -F'\t' -v u="$uuid" -v f="$field" '$1 == u {print $f; exit}' "$SNAP_META"
 }
 
 list_snapshots() {
@@ -153,48 +134,49 @@ list_snapshots() {
     boot_uuid=$(find_boot_snapshot "$snap_data")
     
     local total_count=${#SNAP_UUIDS[@]}
-    local boot_count=0
-    local restore_count=0
-    local debloat_count=0
+    local boot_count=0 debloat_count=0
     
     for i in "${!SNAP_UUIDS[@]}"; do
         local uuid="${SNAP_UUIDS[$i]}"
         local name="${SNAP_NAMES[$i]}"
         local xid="${SNAP_XIDS[$i]}"
-        local size="${SNAP_SIZES[$i]}"
         local num=$((i + 1))
         
-        # Determine snapshot type
-        local type=""
-        local is_boot=false
-        local protected=""
+        local type="" protected=""
         
         if [ "$uuid" = "$boot_uuid" ]; then
             type="CURRENT BOOT"
-            is_boot=true
             protected="${CYAN}[PROTECTED]${RESET}"
             boot_count=$((boot_count + 1))
         elif echo "$name" | grep -q "debloat\.restore"; then
-            type="debloat restore"
+            type="pre-debloat restore point"
             debloat_count=$((debloat_count + 1))
         elif echo "$name" | grep -q "bless"; then
-            type="debloat boot"
+            type="debloat boot snapshot"
             debloat_count=$((debloat_count + 1))
         elif echo "$name" | grep -q "os\.update"; then
-            type="macOS update"
-            restore_count=$((restore_count + 1))
+            type="stock macOS (original install)"
+        elif echo "$name" | grep -q "TimeMachine"; then
+            type="Time Machine backup"
         else
             type="$name"
         fi
         
-        # Size formatting
-        local size_fmt
-        size_fmt=$(format_size "$size")
+        local meta_date; meta_date=$(_meta_lookup "$uuid" 2)
+        local meta_feats; meta_feats=$(_meta_lookup "$uuid" 4)
+        
+        if [ -n "$(_meta_lookup "$uuid" 3)" ]; then
+            case "$(_meta_lookup "$uuid" 3)" in
+                restore) type="pre-debloat restore point" ;;
+                boot)    type="debloat boot snapshot" ;;
+            esac
+        fi
         
         printf "  ${BOLD}[%2d]${RESET} %s %s\n" "$num" "$type" "$protected"
         printf "        UUID:  %s\n" "$uuid"
         [ -n "$xid" ] && printf "        XID:   %s\n" "$xid"
-        [ -n "$size" ] && printf "        Size:  %s\n" "$size_fmt"
+        [ -n "$meta_date" ] && printf "        Date:  %s\n" "$meta_date"
+        [ -n "$meta_feats" ] && printf "        Features: %s\n" "$meta_feats"
         echo ""
     done
     
@@ -213,23 +195,19 @@ delete_snapshot() {
         die "Usage: $0 delete <uuid>"
     fi
     
-    local snap_data
-    snap_data=$(get_snapshots)
-    local boot_uuid
-    boot_uuid=$(find_boot_snapshot "$snap_data")
+    local snap_data; snap_data=$(get_snapshots)
+    local boot_uuid; boot_uuid=$(find_boot_snapshot "$snap_data")
     
     if [ "$uuid" = "$boot_uuid" ]; then
         err "Cannot delete the current boot snapshot!"
-        err "Boot snapshot: $uuid"
         err ""
-        err "To remove this snapshot, first boot into a different snapshot:"
+        err "To remove, first boot into a different snapshot:"
         err "  1. Run: ./restore.sh"
         err "  2. Select a different snapshot"
         err "  3. Reboot and try again"
         exit 1
     fi
     
-    # Find snapshot name for confirmation
     local snap_name="(unknown)"
     parse_snapshots "$snap_data"
     for i in "${!SNAP_UUIDS[@]}"; do
@@ -256,7 +234,14 @@ delete_snapshot() {
     echo ""
     log "Deleting snapshot $uuid..."
     
-    if diskutil apfs deleteSnapshot "$SYSTEM_DEV" -uuid "$uuid" 2>&1; then
+    local delete_dev="$SNAP_SLICE"
+    if [ -z "$delete_dev" ]; then
+        delete_dev=$(diskutil list "$CONTAINER" 2>/dev/null | awk '/APFS Snapshot/{print $NF; exit}')
+    fi
+    
+    [ -z "$delete_dev" ] && die "Could not find snapshot slice device"
+    
+    if diskutil apfs deleteSnapshot "$delete_dev" -uuid "$uuid" 2>&1; then
         ok "Snapshot deleted: $uuid"
     else
         err "Failed to delete snapshot"
@@ -265,10 +250,8 @@ delete_snapshot() {
 }
 
 delete_all_non_boot() {
-    local snap_data
-    snap_data=$(get_snapshots)
-    local boot_uuid
-    boot_uuid=$(find_boot_snapshot "$snap_data")
+    local snap_data; snap_data=$(get_snapshots)
+    local boot_uuid; boot_uuid=$(find_boot_snapshot "$snap_data")
     
     parse_snapshots "$snap_data"
     
@@ -307,12 +290,19 @@ delete_all_non_boot() {
     fi
     
     echo ""
-    local deleted=0
-    local failed=0
+    
+    local delete_dev="$SNAP_SLICE"
+    if [ -z "$delete_dev" ]; then
+        delete_dev=$(diskutil list "$CONTAINER" 2>/dev/null | awk '/APFS Snapshot/{print $NF; exit}')
+    fi
+    
+    [ -z "$delete_dev" ] && die "Could not find snapshot slice device"
+    
+    local deleted=0 failed=0
     
     for uuid in "${to_delete[@]}"; do
         log "Deleting $uuid..."
-        if diskutil apfs deleteSnapshot "$SYSTEM_DEV" -uuid "$uuid" 2>/dev/null; then
+        if diskutil apfs deleteSnapshot "$delete_dev" -uuid "$uuid" 2>/dev/null; then
             deleted=$((deleted + 1))
         else
             warn "Failed to delete: $uuid"
@@ -350,7 +340,6 @@ interactive_delete() {
     fi
 }
 
-# ── Main ──────────────────────────────────────────────────────────────────────
 case "${1:-}" in
     list)
         list_snapshots
