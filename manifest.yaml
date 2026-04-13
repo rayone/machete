@@ -2102,32 +2102,20 @@ background_intelligence:
 # Core Safari app (System/Applications/Safari.app) stays on disk.
 # ------------------------------------------------------------------------------
 safari_services:
-  description: Safari background sync, safe browsing, notifications, history
+  description: Disable Safari background services auto-launch (Safari works when manually launched)
   apps: []
   helpers: []
-  xpc:
-    - System/Library/PrivateFrameworks/SafariSafeBrowsing.framework/XPCServices/com.apple.Safari.SafeBrowsing.Service.xpc
-    - System/Library/PrivateFrameworks/SafariPlatformSupport.framework/Versions/A/XPCServices/com.apple.SafariPlatformSupport.Helper.xpc
-    - System/Library/PrivateFrameworks/GeoServices.framework/Versions/A/XPCServices/com.apple.geod.xpc
+  xpc: []
   prefpanes: []
   appex: []
   mdimporters: []
   loctables: []
-  frameworks:
-    - System/Library/PrivateFrameworks/SafariSafeBrowsing.framework
-    - System/Library/PrivateFrameworks/SafariPlatformSupport.framework
+  frameworks: []
   kexts: []
   input_methods: []
   coreservices: []
   assets: []
-  launchagent_plists:
-    - com.apple.Safari.SafeBrowsing.Service
-    - com.apple.SafariBookmarksSyncAgent
-    - com.apple.Safari.History
-    - com.apple.SafariHistoryServiceAgent
-    - com.apple.SafariLaunchAgent
-    - com.apple.SafariNotificationAgent
-    - com.apple.Safari.PasswordBreachAgent
+  launchagent_plists: []
   launchdaemon_plists: []
   agents:
     - Safari.SafeBrowsing.Service
@@ -2140,12 +2128,8 @@ safari_services:
   daemons: []
   pluginkit: []
   user_containers: []
-  user_prefs:
-    - com.apple.Safari
-    - com.apple.Safari.SafeBrowsing
-  user_caches:
-    - com.apple.Safari
-    - com.apple.Safari.SafeBrowsing
+  user_prefs: []
+  user_caches: []
 
 
 # ------------------------------------------------------------------------------
@@ -2708,3 +2692,58 @@ patches:
     action: plist_delete_key
     key: CFBundleVisibleComponentName
     backup: /tmp/_storeuid_info_original.plist
+
+  # Safari background services - disable auto-launch triggers
+  # Safari works normally when manually launched, but these services won't auto-start at boot
+  safari_safebrowsing_plist:
+    path: System/Library/LaunchAgents/com.apple.Safari.SafeBrowsing.Service.plist
+    action: plist_delete_keys
+    keys:
+      - MachServices
+      - LaunchEvents
+    backup: /tmp/_safari_safebrowsing_original.plist
+
+  safari_bookmarks_sync_plist:
+    path: System/Library/LaunchAgents/com.apple.SafariBookmarksSyncAgent.plist
+    action: plist_delete_keys
+    keys:
+      - MachServices
+      - LaunchEvents
+    backup: /tmp/_safari_bookmarks_sync_original.plist
+
+  safari_history_plist:
+    path: System/Library/LaunchAgents/com.apple.Safari.History.plist
+    action: plist_delete_keys
+    keys:
+      - MachServices
+      - LaunchEvents
+    backup: /tmp/_safari_history_original.plist
+
+  safari_history_service_plist:
+    path: System/Library/LaunchAgents/com.apple.SafariHistoryServiceAgent.plist
+    action: plist_delete_keys
+    keys:
+      - KeepAlive
+    backup: /tmp/_safari_history_service_original.plist
+
+  safari_launch_agent_plist:
+    path: System/Library/LaunchAgents/com.apple.SafariLaunchAgent.plist
+    action: plist_delete_keys
+    keys:
+      - MachServices
+    backup: /tmp/_safari_launch_agent_original.plist
+
+  safari_notification_agent_plist:
+    path: System/Library/LaunchAgents/com.apple.SafariNotificationAgent.plist
+    action: plist_delete_keys
+    keys:
+      - LaunchEvents
+    backup: /tmp/_safari_notification_agent_original.plist
+
+  safari_password_breach_plist:
+    path: System/Library/LaunchAgents/com.apple.Safari.PasswordBreachAgent.plist
+    action: plist_delete_keys
+    keys:
+      - MachServices
+      - LaunchEvents
+    backup: /tmp/_safari_password_breach_original.plist
