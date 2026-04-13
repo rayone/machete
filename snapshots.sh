@@ -234,14 +234,21 @@ delete_snapshot() {
     echo ""
     log "Deleting snapshot $uuid..."
     
-    local delete_dev="$SNAP_SLICE"
-    if [ -z "$delete_dev" ]; then
-        delete_dev=$(diskutil list "$CONTAINER" 2>/dev/null | awk '/APFS Snapshot/{print $NF; exit}')
+    # Mount the System volume if not mounted
+    local mount_point
+    mount_point=$(diskutil info "$SYSTEM_ID" 2>/dev/null | awk '/Mount Point:/{sub(/.*Mount Point:[[:space:]]*/, ""); print; exit}')
+    
+    if [ -z "$mount_point" ]; then
+        log "Mounting System volume..."
+        mount_point="/System/Volumes/Update/snapmnt"
+        mkdir -p "$mount_point" 2>/dev/null || true
+        if ! mount_apfs -o nobrowse "$SYSTEM_DEV" "$mount_point" 2>&1; then
+            err "Failed to mount System volume"
+            exit 1
+        fi
     fi
     
-    [ -z "$delete_dev" ] && die "Could not find snapshot slice device"
-    
-    if diskutil apfs deleteSnapshot "$delete_dev" -uuid "$uuid" 2>&1; then
+    if diskutil apfs deleteSnapshot "$SYSTEM_ID" -uuid "$uuid" 2>&1; then
         ok "Snapshot deleted: $uuid"
     else
         err "Failed to delete snapshot"
@@ -291,18 +298,25 @@ delete_all_non_boot() {
     
     echo ""
     
-    local delete_dev="$SNAP_SLICE"
-    if [ -z "$delete_dev" ]; then
-        delete_dev=$(diskutil list "$CONTAINER" 2>/dev/null | awk '/APFS Snapshot/{print $NF; exit}')
-    fi
+    # Mount the System volume if not mounted
+    local mount_point
+    mount_point=$(diskutil info "$SYSTEM_ID" 2>/dev/null | awk '/Mount Point:/{sub(/.*Mount Point:[[:space:]]*/, ""); print; exit}')
     
-    [ -z "$delete_dev" ] && die "Could not find snapshot slice device"
+    if [ -z "$mount_point" ]; then
+        log "Mounting System volume..."
+        mount_point="/System/Volumes/Update/snapmnt"
+        mkdir -p "$mount_point" 2>/dev/null || true
+        if ! mount_apfs -o nobrowse "$SYSTEM_DEV" "$mount_point" 2>&1; then
+            err "Failed to mount System volume"
+            return 1
+        fi
+    fi
     
     local deleted=0 failed=0
     
     for uuid in "${to_delete[@]}"; do
         log "Deleting $uuid..."
-        if diskutil apfs deleteSnapshot "$delete_dev" -uuid "$uuid" 2>/dev/null; then
+        if diskutil apfs deleteSnapshot "$SYSTEM_ID" -uuid "$uuid" 2>/dev/null; then
             deleted=$((deleted + 1))
         else
             warn "Failed to delete: $uuid"
