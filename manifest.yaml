@@ -249,6 +249,7 @@ siri_and_intelligence:
     - PreinstalledAssetsV2/RequiredByOs/com_apple_MobileAsset_SpeakerRecognitionASMacAssets
   launchagent_plists:
     - com.apple.Siri.agent
+    - com.apple.duetexpertd
   launchdaemon_plists: []
   agents:
     - assistantd
@@ -274,6 +275,7 @@ siri_and_intelligence:
     - ModelCatalogAgent
     # - mlhostd
     # - mlruntimed
+    - duetexpertd
   daemons:
     #- com.apple.corespeechd.system
     - com.apple.modelcatalogd
@@ -1689,42 +1691,34 @@ find_my:
 # where they belong (used by FaceTime.app).
 # ------------------------------------------------------------------------------
 ios_ecosystem:
- description: iPhone mirroring, Continuity Camera, USB device management, accessory updates
- apps: []
- helpers: []
- xpc: []
- prefpanes: []
- appex: []
- mdimporters: []
- loctables: []
- frameworks:
-   - System/Library/PrivateFrameworks/MobileAccessoryUpdater.framework
- kexts: []
- input_methods: []
- coreservices: []
- assets: []
- launchagent_plists: []
- launchdaemon_plists: []
- agents:
-   # CRITICAL: companiond provides com.apple.companiond.xpc and com.apple.CompanionServices XPC. Verified: plutil -p on LaunchAgent plist. Required for iPhone-Mac pairing, handoff, and Apple Watch unlock. Removal breaks all continuity features.
-   # - companiond
-   # CRITICAL: cmio.ContinuityCaptureAgent is ALREADY LISTED in continuity feature (line 1180). Duplicate entry - do not uncomment here.
-   # - cmio.ContinuityCaptureAgent
-   - MobileAccessoryUpdater.fudHelperAgent
-   - mobilerepaird
-   - accessorysensormgrd
-   # CRITICAL: mbfloagent, mbbackgrounduseragent, mbuseragent, mbproximityhelper are part of the mobilebridge proximity/handoff stack. Required for iPhone continuity features even when iPhone Mirroring.app is not used. Removal breaks proximity detection and handoff.
-   # - mbfloagent
-   # - mbbackgrounduseragent
-   # - mbuseragent
-   # - mbproximityhelper
-   - usbnotificationagent
-   - cmio.LaunchCMIOUserExtensionsAgent
- daemons:
- pluginkit: []
- user_containers: []
- user_prefs: []
- user_caches: []
+  description: iPhone mirroring, Continuity Camera, USB device management, accessory updates
+  apps: []
+  helpers: []
+  xpc: []
+  prefpanes: []
+  appex: []
+  mdimporters: []
+  loctables: []
+  frameworks:
+    - System/Library/PrivateFrameworks/MobileAccessoryUpdater.framework
+  kexts: []
+  input_methods: []
+  coreservices: []
+  assets: []
+  launchagent_plists:
+    - com.apple.duetexpertd
+  launchdaemon_plists: []
+  agents:
+    - MobileAccessoryUpdater.fudHelperAgent
+    - mobilerepaird
+    - accessorysensormgrd
+    - usbnotificationagent
+    - cmio.LaunchCMIOUserExtensionsAgent
+  daemons: []
+  pluginkit: []
+  user_containers: []
+  user_prefs: []
+  user_caches: []
 
 # ------------------------------------------------------------------------------
 # HANDOFF / CONTINUITY / SIDECAR / AIRDROP / RAPPORT
@@ -2100,6 +2094,58 @@ background_intelligence:
   user_containers: []
   user_prefs: []
   user_caches: []
+
+# ------------------------------------------------------------------------------
+# SAFARI BACKGROUND SERVICES
+# Safari services auto-launch for sync/malware detection even when Safari isn't used.
+# Removing these prevents Safari from running any background processes.
+# Core Safari app (System/Applications/Safari.app) stays on disk.
+# ------------------------------------------------------------------------------
+safari_services:
+  description: Safari background sync, safe browsing, notifications, history
+  apps: []
+  helpers: []
+  xpc:
+    - System/Library/PrivateFrameworks/SafariSafeBrowsing.framework/XPCServices/com.apple.Safari.SafeBrowsing.Service.xpc
+    - System/Library/PrivateFrameworks/SafariPlatformSupport.framework/Versions/A/XPCServices/com.apple.SafariPlatformSupport.Helper.xpc
+    - System/Library/PrivateFrameworks/GeoServices.framework/Versions/A/XPCServices/com.apple.geod.xpc
+  prefpanes: []
+  appex: []
+  mdimporters: []
+  loctables: []
+  frameworks:
+    - System/Library/PrivateFrameworks/SafariSafeBrowsing.framework
+    - System/Library/PrivateFrameworks/SafariPlatformSupport.framework
+  kexts: []
+  input_methods: []
+  coreservices: []
+  assets: []
+  launchagent_plists:
+    - com.apple.Safari.SafeBrowsing.Service
+    - com.apple.SafariBookmarksSyncAgent
+    - com.apple.Safari.History
+    - com.apple.SafariHistoryServiceAgent
+    - com.apple.SafariLaunchAgent
+    - com.apple.SafariNotificationAgent
+    - com.apple.Safari.PasswordBreachAgent
+  launchdaemon_plists: []
+  agents:
+    - Safari.SafeBrowsing.Service
+    - SafariBookmarksSyncAgent
+    - Safari.History
+    - SafariHistoryServiceAgent
+    - SafariLaunchAgent
+    - SafariNotificationAgent
+    - Safari.PasswordBreachAgent
+  daemons: []
+  pluginkit: []
+  user_containers: []
+  user_prefs:
+    - com.apple.Safari
+    - com.apple.Safari.SafeBrowsing
+  user_caches:
+    - com.apple.Safari
+    - com.apple.Safari.SafeBrowsing
 
 
 # ------------------------------------------------------------------------------

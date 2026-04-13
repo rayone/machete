@@ -37,6 +37,7 @@
 #   ui           Green button, widgets, shortcuts, clock, wallpaper
 #   power        AC/battery sleep, clamshell, Power Nap, standby
 #   network      TCP tuning, sysctl, Chrome DoH, DNS flush
+#   chrome       Memory Saver, tab discarding, background mode, battery saver
 #   updates      Apple SU, Chrome Keystone, Edge updater, AirDrop, Handoff
 #   security     SMB guest, SSH, Remote Events, Gatekeeper, TCC, mDNS, pfctl
 #
@@ -262,8 +263,19 @@ OPTIM_LIST=(
     "tcp_somaxconn|network|Listen backlog queue → 2048 (dev servers under burst load)"
     "sysctl_perf|network|Kernel: maxvnodes=750k (vnode cache, more open dirs/files)"
     "sysctl_persist|network|Persist all sysctl settings via /etc/sysctl.conf"
-    "chrome_doh|network|Disable Chrome DNS-over-HTTPS (fixes ERR_ADDRESS_UNREACHABLE on IPv4-only)"
+    #"chrome_doh|network|Disable Chrome DNS-over-HTTPS (fixes ERR_ADDRESS_UNREACHABLE on IPv4-only)" also breaks local DNS addresses.
     "dns_flush|network|Flush DNS cache (dscacheutil + mDNSResponder)"
+    # ── chrome ─────────────────────────────────────────────────────────────
+    "chrome_memory_saver|chrome|Memory Saver mode → extreme (discards inactive tabs aggressively)"
+    "chrome_tab_discard|chrome|Automatic tab discarding ON (reclaims memory from inactive tabs)"
+    "chrome_high_efficiency|chrome|High Efficiency mode always ON (Memory Saver enforced)"
+    "chrome_site_isolation|chrome|Site isolation OFF (saves ~500MB RAM), isolate only mail.google.com"
+    "chrome_background_mode|chrome|Background mode OFF (Chrome exits fully when closed)"
+    "chrome_startup_boost|chrome|Startup boost OFF (no pre-load on boot)"
+    "chrome_battery_saver|chrome|Battery Saver always ON (reduces CPU/GPU usage)"
+    "chrome_iframe_throttle|chrome|Throttle hidden cross-origin iframes (reduces CPU)"
+    "chrome_disk_cache|chrome|Disk cache → 1 GB (fewer network requests, faster reloads)"
+    "chrome_back_forward_cache|chrome|Back/Forward cache ON (instant navigation)"
     # ── updates ─────────────────────────────────────────────────────────────
     "apple_autoupdate|updates|Disable Apple Software Update auto-check/download (user + system domain)"
     "chrome_keystone|updates|Disable Chrome Keystone updater (all 4 agents/daemons)"
@@ -1629,6 +1641,181 @@ apply_dns_flush() {
     sudo dscacheutil -flushcache
     sudo killall -HUP mDNSResponder 2>/dev/null || true
     ok "DNS cache flushed"
+}
+
+# ── CHROME ────────────────────────────────────────────────────────────────
+
+_chrome_policy() {
+    local key="$1" type="$2" value="$3"
+    local POLICY_USER="${SUDO_USER:-$(id -un)}"
+    local PLIST="/Library/Managed Preferences/$POLICY_USER/com.google.Chrome.plist"
+    local before after="${key}=${value}"
+    [ -f "$PLIST" ] && before=$(sudo /usr/libexec/PlistBuddy -c "Print :${key}" "$PLIST" 2>/dev/null || echo "not set") || before="policy not present"
+    echo "$POLICY_USER" "$PLIST" "$before" "$after"
+}
+
+apply_chrome_memory_saver() {
+    local num="$1" desc="$2"
+    local POLICY_USER="${SUDO_USER:-$(id -un)}"
+    local PLIST="/Library/Managed Preferences/$POLICY_USER/com.google.Chrome.plist"
+    local before after="MemorySaverModeSavings=2 (extreme)"
+    [ -f "$PLIST" ] && before=$(sudo /usr/libexec/PlistBuddy -c "Print :MemorySaverModeSavings" "$PLIST" 2>/dev/null || echo "not set") || before="policy not present"
+    _run_item "$num" "chrome_memory_saver" "$desc" "$before" "$after" || return 0
+    [ "$DRY_RUN" = true ] && return 0
+    sudo mkdir -p "/Library/Managed Preferences/$POLICY_USER"
+    sudo /usr/libexec/PlistBuddy \
+        -c "Add :MemorySaverModeSavings integer 2" "$PLIST" 2>/dev/null || \
+    sudo /usr/libexec/PlistBuddy \
+        -c "Set :MemorySaverModeSavings 2" "$PLIST"
+    ok "Chrome Memory Saver = extreme (managed policy)"
+}
+
+apply_chrome_tab_discard() {
+    local num="$1" desc="$2"
+    local POLICY_USER="${SUDO_USER:-$(id -un)}"
+    local PLIST="/Library/Managed Preferences/$POLICY_USER/com.google.Chrome.plist"
+    local before after="AutomaticTabDiscarding=true"
+    [ -f "$PLIST" ] && before=$(sudo /usr/libexec/PlistBuddy -c "Print :AutomaticTabDiscarding" "$PLIST" 2>/dev/null || echo "not set") || before="policy not present"
+    _run_item "$num" "chrome_tab_discard" "$desc" "$before" "$after" || return 0
+    [ "$DRY_RUN" = true ] && return 0
+    sudo mkdir -p "/Library/Managed Preferences/$POLICY_USER"
+    sudo /usr/libexec/PlistBuddy \
+        -c "Add :AutomaticTabDiscarding bool true" "$PLIST" 2>/dev/null || \
+    sudo /usr/libexec/PlistBuddy \
+        -c "Set :AutomaticTabDiscarding true" "$PLIST"
+    ok "Chrome auto tab discarding ON (managed policy)"
+}
+
+apply_chrome_high_efficiency() {
+    local num="$1" desc="$2"
+    local POLICY_USER="${SUDO_USER:-$(id -un)}"
+    local PLIST="/Library/Managed Preferences/$POLICY_USER/com.google.Chrome.plist"
+    local before after="HighEfficiencyModeEnabled=2 (always on)"
+    [ -f "$PLIST" ] && before=$(sudo /usr/libexec/PlistBuddy -c "Print :HighEfficiencyModeEnabled" "$PLIST" 2>/dev/null || echo "not set") || before="policy not present"
+    _run_item "$num" "chrome_high_efficiency" "$desc" "$before" "$after" || return 0
+    [ "$DRY_RUN" = true ] && return 0
+    sudo mkdir -p "/Library/Managed Preferences/$POLICY_USER"
+    sudo /usr/libexec/PlistBuddy \
+        -c "Add :HighEfficiencyModeEnabled integer 2" "$PLIST" 2>/dev/null || \
+    sudo /usr/libexec/PlistBuddy \
+        -c "Set :HighEfficiencyModeEnabled 2" "$PLIST"
+    ok "Chrome High Efficiency mode = always on (managed policy)"
+}
+
+apply_chrome_site_isolation() {
+    local num="$1" desc="$2"
+    local POLICY_USER="${SUDO_USER:-$(id -un)}"
+    local PLIST="/Library/Managed Preferences/$POLICY_USER/com.google.Chrome.plist"
+    local before after="SitePerProcess=false + IsolateOrigins=mail.google.com"
+    before="SitePerProcess=$([ -f "$PLIST" ] && sudo /usr/libexec/PlistBuddy -c "Print :SitePerProcess" "$PLIST" 2>/dev/null || echo "default(true)"), IsolateOrigins=$([ -f "$PLIST" ] && sudo /usr/libexec/PlistBuddy -c "Print :IsolateOrigins" "$PLIST" 2>/dev/null || echo "not set")"
+    _run_item "$num" "chrome_site_isolation" "$desc" "$before" "$after" || return 0
+    [ "$DRY_RUN" = true ] && return 0
+    sudo mkdir -p "/Library/Managed Preferences/$POLICY_USER"
+    sudo /usr/libexec/PlistBuddy \
+        -c "Add :SitePerProcess bool false" "$PLIST" 2>/dev/null || \
+    sudo /usr/libexec/PlistBuddy \
+        -c "Set :SitePerProcess false" "$PLIST"
+    sudo /usr/libexec/PlistBuddy \
+        -c "Add :IsolateOrigins string https://mail.google.com" "$PLIST" 2>/dev/null || \
+    sudo /usr/libexec/PlistBuddy \
+        -c "Set :IsolateOrigins https://mail.google.com" "$PLIST"
+    ok "Chrome SitePerProcess=false, IsolateOrigins=mail.google.com (managed policy)"
+}
+
+apply_chrome_background_mode() {
+    local num="$1" desc="$2"
+    local POLICY_USER="${SUDO_USER:-$(id -un)}"
+    local PLIST="/Library/Managed Preferences/$POLICY_USER/com.google.Chrome.plist"
+    local before after="BackgroundModeEnabled=false"
+    [ -f "$PLIST" ] && before=$(sudo /usr/libexec/PlistBuddy -c "Print :BackgroundModeEnabled" "$PLIST" 2>/dev/null || echo "not set") || before="policy not present"
+    _run_item "$num" "chrome_background_mode" "$desc" "$before" "$after" || return 0
+    [ "$DRY_RUN" = true ] && return 0
+    sudo mkdir -p "/Library/Managed Preferences/$POLICY_USER"
+    sudo /usr/libexec/PlistBuddy \
+        -c "Add :BackgroundModeEnabled bool false" "$PLIST" 2>/dev/null || \
+    sudo /usr/libexec/PlistBuddy \
+        -c "Set :BackgroundModeEnabled false" "$PLIST"
+    ok "Chrome background mode = OFF (managed policy)"
+}
+
+apply_chrome_startup_boost() {
+    local num="$1" desc="$2"
+    local POLICY_USER="${SUDO_USER:-$(id -un)}"
+    local PLIST="/Library/Managed Preferences/$POLICY_USER/com.google.Chrome.plist"
+    local before after="StartupBoostEnabled=false"
+    [ -f "$PLIST" ] && before=$(sudo /usr/libexec/PlistBuddy -c "Print :StartupBoostEnabled" "$PLIST" 2>/dev/null || echo "not set") || before="policy not present"
+    _run_item "$num" "chrome_startup_boost" "$desc" "$before" "$after" || return 0
+    [ "$DRY_RUN" = true ] && return 0
+    sudo mkdir -p "/Library/Managed Preferences/$POLICY_USER"
+    sudo /usr/libexec/PlistBuddy \
+        -c "Add :StartupBoostEnabled bool false" "$PLIST" 2>/dev/null || \
+    sudo /usr/libexec/PlistBuddy \
+        -c "Set :StartupBoostEnabled false" "$PLIST"
+    ok "Chrome startup boost = OFF (managed policy)"
+}
+
+apply_chrome_battery_saver() {
+    local num="$1" desc="$2"
+    local POLICY_USER="${SUDO_USER:-$(id -un)}"
+    local PLIST="/Library/Managed Preferences/$POLICY_USER/com.google.Chrome.plist"
+    local before after="BatterySaverModeAvailability=3 (always on)"
+    [ -f "$PLIST" ] && before=$(sudo /usr/libexec/PlistBuddy -c "Print :BatterySaverModeAvailability" "$PLIST" 2>/dev/null || echo "not set") || before="policy not present"
+    _run_item "$num" "chrome_battery_saver" "$desc" "$before" "$after" || return 0
+    [ "$DRY_RUN" = true ] && return 0
+    sudo mkdir -p "/Library/Managed Preferences/$POLICY_USER"
+    sudo /usr/libexec/PlistBuddy \
+        -c "Add :BatterySaverModeAvailability integer 3" "$PLIST" 2>/dev/null || \
+    sudo /usr/libexec/PlistBuddy \
+        -c "Set :BatterySaverModeAvailability 3" "$PLIST"
+    ok "Chrome Battery Saver = always on (managed policy)"
+}
+
+apply_chrome_iframe_throttle() {
+    local num="$1" desc="$2"
+    local POLICY_USER="${SUDO_USER:-$(id -un)}"
+    local PLIST="/Library/Managed Preferences/$POLICY_USER/com.google.Chrome.plist"
+    local before after="ThrottleNonVisibleCrossOriginIframesEnabled=true"
+    [ -f "$PLIST" ] && before=$(sudo /usr/libexec/PlistBuddy -c "Print :ThrottleNonVisibleCrossOriginIframesEnabled" "$PLIST" 2>/dev/null || echo "not set") || before="policy not present"
+    _run_item "$num" "chrome_iframe_throttle" "$desc" "$before" "$after" || return 0
+    [ "$DRY_RUN" = true ] && return 0
+    sudo mkdir -p "/Library/Managed Preferences/$POLICY_USER"
+    sudo /usr/libexec/PlistBuddy \
+        -c "Add :ThrottleNonVisibleCrossOriginIframesEnabled bool true" "$PLIST" 2>/dev/null || \
+    sudo /usr/libexec/PlistBuddy \
+        -c "Set :ThrottleNonVisibleCrossOriginIframesEnabled true" "$PLIST"
+    ok "Chrome iframe throttle = ON (managed policy)"
+}
+
+apply_chrome_disk_cache() {
+    local num="$1" desc="$2"
+    local POLICY_USER="${SUDO_USER:-$(id -un)}"
+    local PLIST="/Library/Managed Preferences/$POLICY_USER/com.google.Chrome.plist"
+    local before after="DiskCacheSize=1073741824 (1 GB)"
+    [ -f "$PLIST" ] && before=$(sudo /usr/libexec/PlistBuddy -c "Print :DiskCacheSize" "$PLIST" 2>/dev/null || echo "not set") || before="policy not present"
+    _run_item "$num" "chrome_disk_cache" "$desc" "$before" "$after" || return 0
+    [ "$DRY_RUN" = true ] && return 0
+    sudo mkdir -p "/Library/Managed Preferences/$POLICY_USER"
+    sudo /usr/libexec/PlistBuddy \
+        -c "Add :DiskCacheSize integer 1073741824" "$PLIST" 2>/dev/null || \
+    sudo /usr/libexec/PlistBuddy \
+        -c "Set :DiskCacheSize 1073741824" "$PLIST"
+    ok "Chrome disk cache = 1 GB (managed policy)"
+}
+
+apply_chrome_back_forward_cache() {
+    local num="$1" desc="$2"
+    local POLICY_USER="${SUDO_USER:-$(id -un)}"
+    local PLIST="/Library/Managed Preferences/$POLICY_USER/com.google.Chrome.plist"
+    local before after="BackForwardCacheEnabled=true"
+    [ -f "$PLIST" ] && before=$(sudo /usr/libexec/PlistBuddy -c "Print :BackForwardCacheEnabled" "$PLIST" 2>/dev/null || echo "not set") || before="policy not present"
+    _run_item "$num" "chrome_back_forward_cache" "$desc" "$before" "$after" || return 0
+    [ "$DRY_RUN" = true ] && return 0
+    sudo mkdir -p "/Library/Managed Preferences/$POLICY_USER"
+    sudo /usr/libexec/PlistBuddy \
+        -c "Add :BackForwardCacheEnabled bool true" "$PLIST" 2>/dev/null || \
+    sudo /usr/libexec/PlistBuddy \
+        -c "Set :BackForwardCacheEnabled true" "$PLIST"
+    ok "Chrome Back/Forward cache = ON (managed policy)"
 }
 
 # ── UPDATES ────────────────────────────────────────────────────────────────
