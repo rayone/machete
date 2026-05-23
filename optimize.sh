@@ -428,7 +428,7 @@ _run_item() {
         return 0
     fi
 
-    confirm_item "$num" "$key" "$desc" "$before" "$after" || return 0
+    confirm_item "$num" "$key" "$desc" "$before" "$after" || return 1
 }
 
 # ── INPUT ──────────────────────────────────────────────────────────────────
