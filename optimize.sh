@@ -162,136 +162,143 @@ dfw() { sudo -u "$REAL_USER" defaults "$@"; }
 # ---------------------------------------------------------------------------
 OPTIM_LIST=(
     # ── input ───────────────────────────────────────────────────────────────
-    "key_repeat_rate|input|Key repeat rate → 1 (~15ms, fastest)"
-    "key_repeat_delay|input|Initial key repeat delay → 10 (~150ms before repeat starts)"
-    "press_and_hold|input|Disable press-and-hold accent picker (unblocks key repeat in all apps)"
-    "touchid_sudo|input|Enable Touch ID for sudo (/etc/pam.d/sudo_local)"
+    "key_repeat_rate|input|Key repeat rate → 1 (fastest: ~15ms between repeated keystrokes, default is 90ms — eliminates lag when holding arrow keys or deleting text)"
+    "key_repeat_delay|input|Initial key repeat delay → 10 (~150ms before repeat starts, default 375ms — key held for a quarter second before it starts repeating)"
+    "press_and_hold|input|Disable press-and-hold accent picker — restores key repeat in every app (Xcode, VS Code, Terminal) instead of showing the accent popup on long press"
+    "touchid_sudo|input|Enable Touch ID for sudo — authenticate terminal sudo prompts with fingerprint instead of typing password (writes pam_tid.so to /etc/pam.d/sudo_local)"
+    "text_substitution|input|Disable smart quotes, smart dashes, auto-capitalisation, and double-space-to-period — all four silently corrupt code pasted into Terminal or any native text field; smart quotes replace straight quotes with curly ones causing immediate shell syntax errors"
+    "sudo_timeout|input|Raise sudo credential timeout to 30 min (default 5 min) — writes a Defaults entry to /etc/sudoers.d/sudo_timeout; stops sudo re-prompting every 5 minutes during long build/deploy sessions without permanently disabling the password requirement"
     # ── trackpad ────────────────────────────────────────────────────────────
-    "trackpad_speed|trackpad|Trackpad tracking speed → 3.0 (maximum)"
-    "mouse_speed|trackpad|Mouse tracking speed → 3.0 (maximum)"
-    "spring_load|trackpad|Spring-loading delay → 0.1s (folders open instantly on drag-hover)"
-    "tap_to_click|trackpad|Enable tap-to-click (user domain + currentHost + BT trackpad)"
-    "tap_to_drag|trackpad|Enable tap-to-drag (user domain + currentHost)"
-    "three_finger_drag|trackpad|Disable 3-finger drag (conflicts with MiddleClick)"
-    "three_finger_tap|trackpad|Disable 3-finger tap Look Up gesture"
-    "natural_scroll|trackpad|Natural scroll OFF — traditional scroll direction (wheel down = page down)"
+    "trackpad_speed|trackpad|Trackpad tracking speed → 3.0 (maximum, default 1.5) — cursor travels further per mm of finger movement, less wrist travel on large displays"
+    "mouse_speed|trackpad|Mouse tracking speed → 3.0 (maximum, default 1.5) — same physical-to-screen ratio improvement as trackpad_speed but for external mice"
+    "spring_load|trackpad|Spring-loading delay → 0.1s (default 0.5s) — folders pop open almost instantly when you hover over them while dragging a file, reducing drag-and-drop steps"
+    "tap_to_click|trackpad|Enable tap-to-click — a light tap registers as a click without physically pressing the trackpad down, reducing fatigue and noise"
+    "tap_to_drag|trackpad|Enable tap-to-drag — double-tap and hold to drag without a physical press; complements tap-to-click for moving windows and files"
+    "three_finger_drag|trackpad|Disable 3-finger drag — frees the 3-finger gesture for MiddleClick (open links in new tab); drag is handled by tap-to-drag instead"
+    "three_finger_tap|trackpad|Disable 3-finger tap Look Up — prevents accidental dictionary popups when gesturing; look up still works via Force Touch"
+    "natural_scroll|trackpad|Natural scroll OFF — restores traditional direction (wheel down = page down) matching every non-Apple scroll device and most muscle memory"
     # ── spotlight ───────────────────────────────────────────────────────────
-    "spotlight_boot_volume|spotlight|Ensure Spotlight indexing enabled on / (required for app search)"
-    "spotlight_external_volumes|spotlight|Disable Spotlight indexing on all non-boot volumes"
-    "spotlight_exclusions|spotlight|Clear overly broad Spotlight ExclusionPaths"
-    "spotlight_categories|spotlight|Spotlight shows: Apps + Calculator + System Settings only"
-    "spotlight_siri|spotlight|Disable Siri suggestions in Spotlight"
-    "spotlight_pref_rules|spotlight|Purge Spotlight EnabledPreferenceRules for removed apps"
+    "spotlight_boot_volume|spotlight|Keep Spotlight indexing ON for the boot volume — required for Cmd+Space app search; without it Spotlight cannot find any installed apps"
+    "spotlight_external_volumes|spotlight|Disable Spotlight indexing on external and non-boot volumes — stops mds/mdworker from spinning up and consuming CPU whenever a drive is mounted"
+    "spotlight_exclusions|spotlight|Clear overly broad Spotlight ExclusionPaths — removes exclusions that can prevent legitimate app search results from appearing"
+    "spotlight_categories|spotlight|Restrict Spotlight to Apps, Calculator, and System Settings only — eliminates web search suggestions, contacts, mail, and documents from results, reducing index queries and RAM usage"
+    "spotlight_siri|spotlight|Disable Siri suggestions in Spotlight — stops Spotlight from sending each keypress to Apple servers for suggestion lookup, faster local-only results"
+    "spotlight_pref_rules|spotlight|Remove stale Spotlight preference rules left by uninstalled apps — prevents mdworker from waking to evaluate rules for apps that no longer exist"
     # ── animations ──────────────────────────────────────────────────────────
-    "window_animations|animations|Disable window open/close animations globally"
-    "window_resize_time|animations|Window resize animation → instant (0.001s)"
-    "scroll_animation|animations|Disable smooth scroll animation (instant jump)"
-    "rubber_band|animations|Disable rubber-band overscroll bounce"
-    "reduce_motion|animations|Enable Reduce Motion (removes space-switch swoosh and zoom)"
-    "desktop_tinting|animations|Disable desktop tinting (wallpaper color bleeding into UI chrome)"
-    "menubar_blur|animations|Disable menu bar blur compositing (~15-20% WindowServer CPU saving)"
+    "window_animations|animations|Disable window open/close animations — windows appear and disappear instantly; eliminates the zoom-in/zoom-out compositing work on every app launch and quit"
+    "window_resize_time|animations|Window resize duration → 0.001s (effectively instant, default 0.2s) — drag-to-resize and programmatic resize feel immediate with no rubber-band lag"
+    "scroll_animation|animations|Disable smooth scroll momentum — scroll position snaps immediately to where you stop scrolling; eliminates the coasting animation that delays reaching your target"
+    "rubber_band|animations|Disable rubber-band overscroll bounce — content stays at the edge instead of springing back; stops accidental over-scrolling triggering unnecessary redraws"
+    "reduce_motion|animations|Enable Reduce Motion — replaces parallax, space-switch swoosh fly, and zoom transitions with simple cross-fades; measurably reduces GPU load during workspace switching"
+    "desktop_tinting|animations|Disable wallpaper tinting of UI chrome — stops the OS sampling the wallpaper colour and blending it into window titlebars and menus; eliminates the per-frame recomposite that occurs when windows move over the desktop"
+    "menubar_blur|animations|Disable menu bar blur compositing — removes the real-time frosted-glass blur behind the menu bar, saving ~15-20% WindowServer GPU time on Apple Silicon"
     # ── dock ────────────────────────────────────────────────────────────────
-    "dock_autohide|dock|Enable Dock auto-hide"
-    "dock_autohide_delay|dock|Dock auto-hide delay → 0 (appear instantly)"
-    "dock_autohide_animation|dock|Dock show/hide animation → 0 (instant)"
-    "dock_launch_animation|dock|Disable Dock icon bounce on app launch"
-    "dock_no_bounce|dock|Disable Dock icon bounce notifications"
-    "dock_expose_animation|dock|Mission Control / Exposé animation → instant"
-    "dock_minimize_to_app|dock|Minimize windows into app icon (not separate Dock slot)"
-    "dock_minimize_effect|dock|Minimize effect → scale (fastest)"
-    "dock_space_animation|dock|Disable space-switching swoosh animation"
-    "dock_launchpad_animation|dock|Disable Launchpad show/hide animation"
-    "dock_strip|dock|Strip Dock to configured apps only, disable show-recents (see MACHETE_DOCK_APPS)"
-    "hot_corners|dock|Disable all four hot corners"
+    "dock_autohide|dock|Auto-hide the Dock — reclaims the full screen height at all times; Dock slides in only when the cursor reaches the screen edge"
+    "dock_autohide_delay|dock|Dock appear delay → 0 (default 0.5s) — Dock begins sliding in the instant the cursor hits the screen edge instead of waiting half a second"
+    "dock_autohide_animation|dock|Dock slide animation → 0.15s (default 0.5s) — Dock snaps in quickly without the full half-second slide; set to 0 for completely instant if preferred"
+    "dock_launch_animation|dock|Disable app launch bounce — the Dock icon stops bouncing when an app is opening; eliminates the animation work and distraction during every launch"
+    "dock_no_bounce|dock|Disable notification bounce — app icons stop bouncing in the Dock when they want attention; reduces distraction and unnecessary animation CPU usage"
+    "dock_expose_animation|dock|Mission Control animation → instant (default ~0.3s) — all windows spread out immediately on Ctrl+Up without the fly-apart animation delay"
+    "dock_minimize_to_app|dock|Minimize into app icon — minimized windows merge into the app's Dock icon instead of creating a separate thumbnail slot, keeping the Dock uncluttered"
+    "dock_minimize_effect|dock|Minimize effect → scale (default genie) — the scale effect is computationally cheaper than the genie warp; noticeable when minimizing large windows"
+    "dock_space_animation|dock|Disable Space-switch swoosh animation — switching desktops snaps immediately instead of the full horizontal slide across the screen"
+    "dock_launchpad_animation|dock|Disable Launchpad open/close animation — Launchpad appears and dismisses instantly without the scale-in/scale-out zoom"
+    "dock_strip|dock|Strip Dock to essential apps only (configured in MACHETE_DOCK_APPS) and hide Recent Apps — removes clutter and prevents the Dock from resizing dynamically as recents change"
+    "hot_corners|dock|Disable all hot corners — prevents accidental Screen Saver, Mission Control, or Desktop triggers when moving the cursor quickly to a screen corner"
     # ── finder ──────────────────────────────────────────────────────────────
-    "finder_animations|finder|Disable all Finder animations and window zoom animation"
-    "finder_hidden_files|finder|Show all hidden files and dotfiles"
-    "finder_extensions|finder|Always show file extensions (never hide .app .sh .py etc.)"
-    "finder_path_bar|finder|Show path bar (full folder path at bottom of Finder window)"
-    "finder_status_bar|finder|Show status bar (item count + disk space used/free)"
-    "finder_posix_title|finder|Show full POSIX path in Finder window title"
-    "finder_no_ext_warning|finder|No warning when changing a file extension"
-    "finder_no_trash_warning|finder|No warning when emptying Trash"
-    "finder_search_current|finder|Search current folder by default (not entire Mac)"
-    "finder_folders_first|finder|Folders sort before files in list view and on desktop"
-    "finder_home_default|finder|New Finder window opens to home folder"
-    "finder_list_view|finder|Default view → list view (all windows)"
-    "finder_list_view_columns|finder|List view: show name, size, date modified, kind columns"
-    "finder_list_view_icon_size|finder|List view: icon size 16px, text size 13pt, relative dates ON"
-    "finder_toolbar|finder|Show Finder toolbar (TB Is Shown)"
-    "finder_sidebar|finder|Show Finder sidebar"
-    "finder_preview_pane|finder|Show preview pane (right side — file details without opening)"
-    "finder_tab_bar|finder|Show tab bar (enables window tabs in all new Finder windows)"
-    "finder_quicklook_text|finder|Allow text selection in Quick Look (Cmd+Space preview)"
-    "finder_desktop_icons|finder|Show hard drives, external drives, removable media on desktop"
-    "finder_save_panel|finder|Expand Save panel by default (never show minimal one-liner)"
-    "finder_print_panel|finder|Expand Print panel by default"
-    "finder_save_to_disk|finder|Save new documents to disk by default (not iCloud)"
-    "finder_no_icloud|finder|Remove iCloud Drive from Finder sidebar and Go menu"
-    "finder_terminal_service|finder|Enable 'New Terminal at Folder' and 'New Terminal Tab at Folder' Services"
-    "ds_store_network|finder|Disable .DS_Store creation on network volumes"
-    "ds_store_usb|finder|Disable .DS_Store creation on USB/external volumes"
-    "ds_store_remove|finder|Remove all existing .DS_Store files from home directory"
+    "finder_animations|finder|Disable all Finder animations (window zoom, folder open transitions) — Finder responds instantly to navigation without waiting for slide-in effects"
+    "finder_hidden_files|finder|Show hidden files and dotfiles — .zshrc, .ssh, .config and other dotfiles are visible in every Finder window without needing to toggle them each session"
+    "finder_extensions|finder|Always show file extensions — .app, .sh, .py, .json are always visible; prevents accidental double-extension on rename and makes file types unambiguous"
+    "finder_path_bar|finder|Show path bar at bottom of Finder window — displays the full folder hierarchy from / to the current location; click any segment to navigate up instantly"
+    "finder_status_bar|finder|Show status bar at bottom of Finder window — shows item count and available disk space for the current location without opening Get Info"
+    "finder_posix_title|finder|Show full POSIX path in Finder title bar — the window title shows /Users/you/Documents/project instead of just 'project'; useful for confirming location"
+    "finder_no_ext_warning|finder|Suppress extension-change warning — renaming file.txt to file.md no longer prompts a confirmation dialog on every rename"
+    "finder_no_trash_warning|finder|Suppress empty-Trash confirmation — removes the 'Are you sure?' dialog when emptying; undo (Cmd+Z) remains available immediately after"
+    "finder_search_current|finder|Search current folder by default — Cmd+F searches the open folder instead of the entire Mac; prevents slow system-wide searches when you just need a local result"
+    "finder_folders_first|finder|Sort folders before files in list view and on the desktop — directories always appear at the top of any sorted column, matching the convention of most other OSes and terminals"
+    "finder_home_default|finder|New Finder windows open to home folder — every new window starts at ~ instead of Recents or iCloud Drive"
+    "finder_list_view|finder|Default Finder view → list view — list view shows the most information per pixel and sorts consistently; replaces icon view (wastes space) and column view (inconsistent widths)"
+    "finder_list_view_columns|finder|Configure list view columns — shows Name, Date Modified, Size, and Kind; hides less-useful columns (Date Created, Label, Comments) to reduce horizontal scroll"
+    "finder_list_view_icon_size|finder|List view icon size 16px, text 13pt, relative dates ON — compact row height fits more items; 'Yesterday' and 'Today' are faster to scan than absolute dates"
+    "finder_toolbar|finder|Show Finder toolbar — keeps Back/Forward, View switcher, and the search field visible; hiding it is a common accidental state that breaks navigation"
+    "finder_sidebar|finder|Show Finder sidebar with Devices and Places expanded — sidebar bookmarks are the fastest way to navigate; Tags section collapsed as it adds clutter without benefit for most workflows"
+    "finder_preview_pane|finder|Show Quick Look preview pane on the right — file contents (images, PDFs, text) are visible without opening the file; saves an open/close cycle when triaging files"
+    "finder_tab_bar|finder|Show tab bar in Finder windows — enables Cmd+T to open new tabs in the same window; keeps navigation contained to one window instead of spawning multiple"
+    "finder_quicklook_text|finder|Enable text selection in Quick Look — you can copy text from a file preview without fully opening it in an editor"
+    "finder_desktop_icons|finder|Show drives and removable media on desktop — mounted external drives, USB sticks, and network shares appear on the desktop for quick access and unmounting"
+    "finder_save_panel|finder|Expand Save dialog by default — shows the full directory navigator instead of the one-line filename prompt; prevents saving files in unexpected locations"
+    "finder_print_panel|finder|Expand Print dialog by default — shows all print options (pages, orientation, scale) instead of the minimal two-option view"
+    "finder_save_to_disk|finder|Save new documents to local disk by default — prevents iCloud from silently uploading new files; documents stay local unless you explicitly move them to iCloud"
+    "finder_no_icloud|finder|Remove iCloud Drive from Finder sidebar and Go menu — eliminates iCloud from navigation when not in use; stops Finder offering iCloud as a save destination"
+    "finder_terminal_service|finder|Add 'New Terminal at Folder' to right-click Services menu — Ctrl+click any folder to open a Terminal tab there without dragging the path into an existing window"
+    "ds_store_network|finder|Stop writing .DS_Store files on network volumes — prevents Finder from creating .DS_Store metadata files on NAS shares and SMB mounts that other OSes see as clutter"
+    "ds_store_usb|finder|Stop writing .DS_Store files on USB/external volumes — prevents .DS_Store from appearing on FAT32 and exFAT drives shared with Windows or Linux machines"
+    "ds_store_remove|finder|Delete all existing .DS_Store files under home — one-time cleanup of accumulated .DS_Store files; has no ongoing effect (see ds_store_network and ds_store_usb for prevention)"
     # ── ui ──────────────────────────────────────────────────────────────────
-    "green_button_maximize|ui|Green button → maximize instead of full-screen"
-    "maximize_shortcut|ui|Ctrl+Cmd+M = maximize shortcut (global, all apps)"
-    "widgets_disable|ui|Disable all widgets (clear WidgetAllowList → ~500 MB RAM freed)"
-    "screenshots|ui|Ensure Cmd+Shift+3/4/5 screenshot shortcuts are enabled"
-    "spotlight_shortcut|ui|Ensure Cmd+Space app launcher shortcut is enabled"
-    "controlcenter_cleanup|ui|Remove orphaned Control Center items (Siri, AirDrop, TimeMachine, Weather)"
-    "wallpaper_black|ui|Set solid black wallpaper (eliminates WallpaperAerialsExtension ~131 MB)"
-    "timezone|ui|Set timezone (see MACHETE_TIMEZONE in USER CONFIGURATION block)"
-    "clock_24hr|ui|Force 24-hour clock system-wide"
-    "clock_iso_date|ui|ISO 8601 date format: yyyy-MM-dd at all ICU length levels"
-    "clock_seconds|ui|Show seconds in menu bar clock"
-    "clock_menubar_format|ui|Menu bar clock format → yyyy-MM-dd HH:mm:ss"
-    "computer_name|ui|Set computer name (see MACHETE_COMPUTER_NAME in USER CONFIGURATION block)"
+    "green_button_maximize|ui|Green button → maximize (fill screen) instead of full-screen — avoids creating a new Space and the Space-switch animation; window fills the display without entering full-screen mode"
+    "maximize_shortcut|ui|Add Ctrl+Cmd+M global shortcut to maximize any window — triggers the green button action from the keyboard without reaching for the mouse"
+    "widgets_disable|ui|Disable all desktop and Notification Centre widgets — clears ~500 MB RAM used by widget processes; widgets wake periodically to refresh data even when not visible"
+    "screenshots|ui|Ensure screenshot shortcuts are registered — confirms Cmd+Shift+3 (full screen), Cmd+Shift+4 (region), and Cmd+Shift+5 (options) are active in AppleSymbolicHotKeys"
+    "spotlight_shortcut|ui|Ensure Cmd+Space is registered as the Spotlight/app-launcher shortcut — confirms hotkey 60 is active; can be silently lost when other apps register the same combination"
+    "controlcenter_cleanup|ui|Remove orphaned Control Centre status items (Siri, AirDrop, TimeMachine, Weather) — stale menu-bar entries left by disabled features that still occupy menu-bar space and trigger background processes"
+    "wallpaper_black|ui|Set solid black wallpaper — eliminates WallpaperAerialsExtension (~131 MB RAM) used for dynamic/aerial wallpapers; a static colour requires zero GPU compositing work"
+    "crash_reporter|ui|Suppress CrashReporter dialog — default behaviour pops a blocking 'application quit unexpectedly' dialog for every crash that must be dismissed before work can continue; setting DialogType=none suppresses the popup while crash reports still write to ~/Library/Logs/DiagnosticReports"
+    "timezone|ui|Set system timezone to MACHETE_TIMEZONE — ensures logs, file timestamps, and scheduled tasks use the correct local time (edit MACHETE_TIMEZONE at the top of this file)"
+    "clock_24hr|ui|Force 24-hour time system-wide — overrides locale; 13:45 instead of 1:45 PM eliminates AM/PM ambiguity in logs, terminals, and all system dialogs"
+    "clock_iso_date|ui|Force ISO 8601 date format (yyyy-MM-dd) system-wide — overrides locale-dependent formats like 'May 23, 2026' or '23/05/26'; dates sort correctly as strings and match log output"
+    "clock_seconds|ui|Show seconds in the menu bar clock — visible elapsed time without opening another app; useful when timing commands or builds"
+    "clock_menubar_format|ui|Menu bar clock format → yyyy-MM-dd HH:mm:ss — combines ISO date and 24-hour time with seconds in a single compact string; consistent with terminal and log timestamps"
+    "computer_name|ui|Set computer name to MACHETE_COMPUTER_NAME — sets ComputerName, LocalHostName, HostName, and SMB NetBIOSName in one step (edit MACHETE_COMPUTER_NAME at the top of this file)"
     # ── power ───────────────────────────────────────────────────────────────
-    "power_mode_auto|power|AC power mode → Auto (full boost on demand, saves at idle)"
-    "power_display_sleep_ac|power|AC display sleep → 5 minutes"
-    "power_system_sleep_ac|power|AC system sleep → 10 minutes"
-    "power_clamshell|power|Clamshell mode: continue processing with lid closed (AC)"
-    "power_nap_ac|power|Disable Power Nap on AC (nothing left to wake up for)"
-    "power_disk_sleep_ac|power|AC disk sleep → 10 minutes"
-    "power_display_sleep_bat|power|Battery display sleep → 2 minutes"
-    "power_system_sleep_bat|power|Battery system sleep → 5 minutes"
-    "power_standby_bat|power|Disable standby on battery (stops background wake cycle)"
-    "power_nap_bat|power|Disable Power Nap on battery"
+    "power_mode_auto|power|AC power mode → Auto — CPU and GPU boost to full performance under load and throttle back at idle; avoids locking into High Power Mode (wastes energy at idle) or Low Power Mode (caps burst performance)"
+    "power_display_sleep_ac|power|AC display sleep → 5 min — display turns off after 5 minutes of inactivity on AC power; saves GPU/display energy without being disruptive during normal work sessions"
+    "power_system_sleep_ac|power|AC system sleep → 10 min — the system sleeps 10 minutes after the display sleeps on AC; long enough to avoid interrupting long-running tasks"
+    "power_clamshell|power|Enable clamshell operation on AC — acwake=1 keeps the Mac awake and processing when the lid is closed and connected to an external display; prevents sleep-on-lid-close"
+    "power_nap_ac|power|Disable Power Nap on AC — Power Nap wakes the system during sleep to check mail, sync iCloud, and run Time Machine backups; disable when those services are not in use to prevent unwanted wakes"
+    "power_disk_sleep_ac|power|AC disk sleep → 10 min — internal SSD enters low-power state after 10 minutes idle on AC; on Apple Silicon NVMe the impact is minimal but prevents unnecessary idle power draw"
+    "power_display_sleep_bat|power|Battery display sleep → 2 min — display turns off sooner on battery to preserve charge; the display is the largest power consumer on a laptop"
+    "power_system_sleep_bat|power|Battery system sleep → 5 min — system sleeps 5 minutes after the display sleeps on battery; aggressive sleep extends battery life during away-from-charger use"
+    "power_standby_bat|power|Disable standby on battery — standby causes the system to hibernate (write RAM to disk) after a delay; disabling it keeps the machine in normal sleep and avoids the multi-second wake-from-hibernate delay"
+    "power_nap_bat|power|Disable Power Nap on battery — same as power_nap_ac but specifically for battery operation; background syncs and wake events are the largest contributor to unexpected battery drain during sleep"
+    "hibernate_mode_ac|power|AC hibernate mode → 0 (RAM-only sleep, no disk image) — default mode 3 writes the full contents of RAM to disk as a safety net before standby; on a 128 GB machine that is a 128 GB SSD write on every sleep cycle; mode 0 keeps RAM powered and skips the write entirely, making wake from sleep instant"
+    "wol_ac|power|Disable Wake on LAN on AC — womp=1 keeps a network listener active during sleep so a Magic Packet can remotely wake the machine; if you never use remote wake, this is wasted background activity and a minor security surface"
     # ── network ─────────────────────────────────────────────────────────────
-    "tcp_socket_buffer|network|Max socket buffer → 16 MB (throughput on fast networks)"
-    "tcp_send_recv_space|network|TCP send/receive space → 1 MB per connection"
-    "tcp_somaxconn|network|Listen backlog queue → 2048 (dev servers under burst load)"
-    "sysctl_perf|network|Kernel: maxvnodes=750k (vnode cache, more open dirs/files)"
-    "sysctl_persist|network|Persist all sysctl settings via /etc/sysctl.conf"
+    "tcp_socket_buffer|network|TCP socket buffer → 16 MB (default 4 MB) — larger kernel socket buffer allows the OS to keep more in-flight data per connection; measurably improves throughput on high-bandwidth links like 10 GbE or fast Wi-Fi"
+    "tcp_send_recv_space|network|TCP send/receive window → 1 MB per connection (default 128 KB) — larger window means more data can be in transit before waiting for acknowledgement; most impactful on high-latency or high-bandwidth connections"
+    "tcp_somaxconn|network|Listen backlog → 2048 connections (default 128) — the kernel queues up to 2048 incoming connections before refusing new ones; relevant when running local dev servers (webpack, vite, http-server) under burst browser load"
+    "sysctl_perf|network|Kernel vnode cache → 750 000 entries (default ~263 000) — each open file or directory requires a vnode; raising the limit prevents 'too many open files' errors in large monorepos and stops the kernel from evicting hot cache entries under load"
+    "launchd_maxfiles|network|Per-process open file descriptor limit → 65 536 (default soft limit 256) — Node.js, Docker, webpack, Jest, and large git operations routinely exhaust the 256-handle soft limit and crash with EMFILE; writes a LaunchDaemon plist that raises the limit system-wide at every boot"
+    "iogpu_wired_limit|network|GPU wired memory cap → installed RAM − 6 GB — iogpu.wired_limit_mb tells the Metal driver the maximum it may wire for GPU use; leaving 6 GB headroom guarantees the kernel always has breathing room for CPU workloads and page tables even when a GPU-heavy app tries to claim all unified memory"
+    "sysctl_persist|network|Write all sysctl tuning values to /etc/sysctl.conf — makes the tcp_socket_buffer, tcp_send_recv_space, tcp_somaxconn, sysctl_perf, and iogpu_wired_limit changes survive reboots; without this file all sysctl changes revert on next boot"
     #"chrome_doh|network|Disable Chrome DNS-over-HTTPS (fixes ERR_ADDRESS_UNREACHABLE on IPv4-only)" also breaks local DNS addresses.
-    "dns_flush|network|Flush DNS cache (dscacheutil + mDNSResponder)"
+    "dns_flush|network|Flush DNS resolver cache — clears stale DNS entries immediately after hosts_telemetry edits /etc/hosts; also useful after changing DNS servers or debugging resolution failures"
     # ── chrome ─────────────────────────────────────────────────────────────
-    "chrome_memory_saver|chrome|Memory Saver mode → extreme (discards inactive tabs aggressively)"
-    "chrome_tab_discard|chrome|Automatic tab discarding ON (reclaims memory from inactive tabs)"
-    "chrome_high_efficiency|chrome|High Efficiency mode always ON (Memory Saver enforced)"
-    "chrome_site_isolation|chrome|Site isolation OFF (saves ~500MB RAM), isolate only mail.google.com"
-    "chrome_background_mode|chrome|Background mode OFF (Chrome exits fully when closed)"
-    "chrome_startup_boost|chrome|Startup boost OFF (no pre-load on boot)"
-    "chrome_battery_saver|chrome|Battery Saver always ON (reduces CPU/GPU usage)"
-    "chrome_iframe_throttle|chrome|Throttle hidden cross-origin iframes (reduces CPU)"
-    "chrome_disk_cache|chrome|Disk cache → 1 GB (fewer network requests, faster reloads)"
-    "chrome_back_forward_cache|chrome|Back/Forward cache ON (instant navigation)"
+    "chrome_memory_saver|chrome|Memory Saver → extreme aggressiveness — Chrome discards inactive tab renderer processes sooner and more readily, freeing their RAM back to the OS; 'extreme' sets a shorter idle timeout than 'balanced' or 'moderate'"
+    "chrome_tab_discard|chrome|Automatic tab discarding ON — Chrome can discard (suspend) background tabs under memory pressure as a managed policy; tabs reload on activation but are not consuming RAM while suspended"
+    "chrome_high_efficiency|chrome|High Efficiency Mode always ON — enforces Memory Saver as a managed policy so the user cannot disable it; ensures chrome_memory_saver stays active even after Chrome updates reset user preferences"
+    "chrome_site_isolation|chrome|Site isolation OFF for most origins, ON for mail.google.com — disabling per-site renderer processes saves ~500 MB RAM (each isolated site gets its own process); Gmail stays isolated as it handles sensitive session data"
+    "chrome_background_mode|chrome|Background mode OFF — Chrome fully exits when the last window closes instead of remaining as a background process; reclaims all Chrome memory and CPU immediately on close"
+    "chrome_startup_boost|chrome|Startup boost OFF — disables Chrome pre-launching at login to speed up first-open; not applicable on macOS (Windows-only feature) but the policy prevents it if Chrome adds macOS support later"
+    "chrome_battery_saver|chrome|Battery Saver always ON — Chrome reduces JavaScript timer frequency, animation frame rate, and video decode quality when Battery Saver is active; reduces CPU and GPU load even on AC"
+    "chrome_iframe_throttle|chrome|Throttle hidden cross-origin iframes — background iframes (ads, trackers, analytics) that are not visible have their CPU and network activity throttled; reduces background tab CPU usage"
+    "chrome_disk_cache|chrome|Disk cache → 1 GB (Chrome default ~320 MB auto-sized) — larger cache means more resources are served from disk on revisit instead of re-fetched over the network; most impactful on sites with many large static assets"
+    "chrome_back_forward_cache|chrome|Back/Forward cache ON — Chrome keeps the full rendered state of recently visited pages in memory so Back and Forward navigation is instant instead of re-fetching and re-rendering the page"
     # ── updates ─────────────────────────────────────────────────────────────
-    "apple_autoupdate|updates|Disable Apple Software Update auto-check/download (user + system domain)"
-    "chrome_keystone|updates|Disable Chrome Keystone updater (all 4 agents/daemons)"
-    "edge_updater|updates|Disable Microsoft Edge updater"
-    "airdrop|updates|Disable AirDrop"
-    "handoff_continuity|updates|Disable Handoff and Continuity"
-    "chrome_crashpad|updates|Create Chrome Crashpad settings.dat (suppress log error)"
+    "apple_autoupdate|updates|Disable Apple Software Update auto-check, auto-download, and auto-install — stops background update daemons from waking, downloading large OS packages, and installing without explicit consent; manual updates via System Settings still work"
+    "chrome_keystone|updates|Disable Chrome Keystone auto-updater — stops all 4 Keystone launch agents and daemons from running at login and in the background; Chrome can still be updated manually from chrome://settings/help"
+    "edge_updater|updates|Disable Microsoft Edge background updater — removes the EdgeUpdater LaunchAgent that wakes periodically to check for and download Edge updates; Edge can still be updated manually"
+    "airdrop|updates|Disable AirDrop — stops the discoveryd/mDNS advertising that makes the machine visible to nearby Apple devices; eliminates the background Bluetooth and Wi-Fi scanning AirDrop requires to remain discoverable"
+    "handoff_continuity|updates|Disable Handoff and Continuity — stops activity advertising to nearby Apple devices (iPhone, iPad, other Macs); eliminates the Bluetooth LE broadcasts and iCloud polling Handoff uses to surface cross-device suggestions"
+    "chrome_crashpad|updates|Create Chrome Crashpad settings.dat — pre-creates the file Chrome's crash reporter expects at startup to silence a recurring log error; purely cosmetic, no functional effect"
     # ── security ────────────────────────────────────────────────────────────
-    "smb_guest|security|Disable SMB guest access (shares require authentication)"
-    "ssh_server|security|Disable SSH server / sshd inbound (outbound SSH unaffected)"
-    "remote_apple_events|security|Disable Remote Apple Events (remote AppleScript execution)"
-    "gatekeeper|security|Disable Gatekeeper (allow unsigned binaries on dev machine)"
-    "mdns_multicast|security|Suppress mDNS multicast (machine invisible on LAN)"
-    "hosts_telemetry|security|Null-route 11 Apple telemetry domains in /etc/hosts"
-    "pfctl_telemetry|security|pfctl anchor: block outbound telemetry at kernel level"
-    "alf_firewall|security|Enable ALF firewall with stealth mode (block unsolicited inbound)"
+    "smb_guest|security|Disable SMB guest access — prevents unauthenticated connections to any shared folders; any SMB client must supply valid credentials"
+    "ssh_server|security|Disable inbound SSH server (sshd) — Remote Login is off so no process listens on port 22; outbound ssh connections you initiate are unaffected"
+    "remote_apple_events|security|Disable Remote Apple Events — closes the OSAScriptingDefinition port that allows remote machines to run AppleScript on this Mac; rarely needed and a legacy attack surface"
+    "gatekeeper|security|Disable Gatekeeper code-signing checks — allows unsigned and ad-hoc signed binaries to run without Quarantine prompts; intended for dev machines that regularly build and run local unsigned tools"
+    "mdns_multicast|security|Suppress mDNS multicast advertising — the machine stops responding to .local name resolution requests from other devices on the LAN; reduces network fingerprinting and lateral discovery"
+    "hosts_telemetry|security|Block 11 Apple telemetry hostnames in /etc/hosts via 0.0.0.0 — metrics.icloud.com, xp.apple.com, and similar domains are null-routed at the resolver; stops telemetry at the DNS layer with no firewall required"
+    "pfctl_telemetry|security|Block the same telemetry domains at the kernel packet-filter level via a pfctl anchor LaunchDaemon — complements hosts_telemetry by dropping the packets even if the DNS layer is bypassed; survives OS updates via a persistent LaunchDaemon"
+    "alf_firewall|security|Enable Application Layer Firewall with stealth mode — blocks unsolicited inbound connections to all apps; stealth mode drops ICMP ping requests so the machine does not respond to network probes"
 )
 
 TOTAL_ITEMS=${#OPTIM_LIST[@]}
@@ -363,39 +370,42 @@ build_work_list
 log "Items to process: ${#WORK_LIST[@]} of $TOTAL_ITEMS"
 
 # ---------------------------------------------------------------------------
-# Confirmation engine — same y/n/a/q pattern as debloat.sh
-# Returns 0 = proceed, 1 = skip
+# Confirmation engine
+# confirm_item returns:  0 = apply optimized  2 = apply default  1 = skip
+# _run_item  returns:    0 = apply optimized  2 = apply default  1 = skip
 # ---------------------------------------------------------------------------
 _accept_all=false
 SPOTLIGHT_CHANGED=false   # set true when any spotlight_* item is applied
 
 confirm_item() {
-    local number="$1" key="$2" desc="$3" before_val="$4" after_val="$5"
+    local number="$1" key="$2" desc="$3" current_val="$4" default_val="$5" optimized_val="$6"
 
-    if [ "$DRY_RUN" = true ] || [ "$YES_ALL" = true ] || [ "$_accept_all" = true ]; then
+    if [ "$YES_ALL" = true ] || [ "$_accept_all" = true ]; then
         return 0
     fi
 
     echo ""
     sep
     printf "  [%d/%d] %s\n" "$number" "${#WORK_LIST[@]}" "$desc"
-    printf "  Key:    %s\n" "$key"
-     [ -n "$before_val" ] && printf "  Before: %s\n" "$before_val"
-     [ -n "$after_val"  ] && printf "  After:  %s\n" "$after_val"
-     printf "  Apply? [y/n/a/q]: "
+    printf "  Key:       %s\n" "$key"
+    printf "  Current:   %s\n" "${current_val:-(not set)}"
+    printf "  Default:   %s\n" "${default_val:-(not set)}"
+    printf "  Optimized: %s\n" "${optimized_val:-(not set)}"
+    printf "  Apply? [o=optimized / d=default / n=skip / a=all optimized / q=quit]: "
 
-     local ans ans_lower
-     read -r ans < /dev/tty
-     ans_lower=$(echo "$ans" | tr '[:upper:]' '[:lower:]')
-     case "$ans_lower" in
-         y|yes)          return 0 ;;
-         n|no)           return 1 ;;
-         a|all)          _accept_all=true; return 0 ;;
-         q|quit|exit)
-             log "Quit at item $number ($key). No further changes."
-             echo ""
-             echo "  Quit. Flushing preferences written so far..."
-             _flush_prefs
+    local ans ans_lower
+    read -r ans < /dev/tty
+    ans_lower=$(echo "$ans" | tr '[:upper:]' '[:lower:]')
+    case "$ans_lower" in
+        o|optimized|y|yes)  return 0 ;;
+        d|default)          return 2 ;;
+        n|no)               return 1 ;;
+        a|all)              _accept_all=true; return 0 ;;
+        q|quit|exit)
+            log "Quit at item $number ($key). No further changes."
+            echo ""
+            echo "  Quit. Flushing preferences written so far..."
+            _flush_prefs
             exit 0
             ;;
         *)
@@ -407,96 +417,173 @@ confirm_item() {
 
 # Print a dry-run line (no prompt needed)
 dry_item() {
-    local number="$1" key="$2" desc="$3" before_val="$4" after_val="$5"
-    printf "  [%3d/%d] %-35s | Before: %-30s → After: %s\n" \
-        "$number" "${#WORK_LIST[@]}" "$key" "${before_val:-(not set)}" "$after_val"
+    local number="$1" key="$2" desc="$3" current_val="$4" default_val="$5" optimized_val="$6"
+    printf "  [%3d/%d] %-35s | Current: %-20s Default: %-20s Optimized: %s\n" \
+        "$number" "${#WORK_LIST[@]}" "$key" \
+        "${current_val:-(not set)}" "${default_val:-(not set)}" "${optimized_val:-(not set)}"
 }
 
 # ---------------------------------------------------------------------------
 # APPLY FUNCTIONS — one per optimization key
 # Each: reads current value, calls confirm_item, applies if confirmed
+# _run_item return codes:  0 = apply optimized  2 = apply default  1 = skip
 # ---------------------------------------------------------------------------
 
 _run_item() {
     local num="$1" key="$2" desc="$3"
     shift 3
-    # Remaining positional args: before after (passed by apply_ function)
-    local before="${1:-}" after="${2:-}"
+    local current="${1:-}" default="${2:-}" optimized="${3:-}"
 
     if [ "$DRY_RUN" = true ]; then
-        dry_item "$num" "$key" "$desc" "$before" "$after"
-        return 0
+        dry_item "$num" "$key" "$desc" "$current" "$default" "$optimized"
+        return 1   # dry-run: never proceed to write
     fi
 
-    confirm_item "$num" "$key" "$desc" "$before" "$after" || return 1
+    confirm_item "$num" "$key" "$desc" "$current" "$default" "$optimized"
+    return $?
 }
 
 # ── INPUT ──────────────────────────────────────────────────────────────────
 
 apply_key_repeat_rate() {
     local num="$1" desc="$2"
-    local before after="1"
-    before=$(dfw read NSGlobalDomain KeyRepeat 2>/dev/null || echo "default (6)")
-    _run_item "$num" "key_repeat_rate" "$desc" "$before" "$after" || return 0
-    [ "$DRY_RUN" = true ] && return 0
-    dfw write NSGlobalDomain KeyRepeat -int 1
-    ok "KeyRepeat = 1  (rollback: defaults delete NSGlobalDomain KeyRepeat)"
+    local current default="6" optimized="1"
+    current=$(dfw read NSGlobalDomain KeyRepeat 2>/dev/null || echo "(not set)")
+    _run_item "$num" "key_repeat_rate" "$desc" "$current" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
+    if [ "$_rc" -eq 2 ]; then
+        dfw delete NSGlobalDomain KeyRepeat 2>/dev/null || true
+        ok "KeyRepeat reset to macOS default (6)"
+    else
+        dfw write NSGlobalDomain KeyRepeat -int 1
+        ok "KeyRepeat = 1  (rollback: defaults delete NSGlobalDomain KeyRepeat)"
+    fi
 }
 
 apply_key_repeat_delay() {
     local num="$1" desc="$2"
-    local before after="10"
-    before=$(dfw read NSGlobalDomain InitialKeyRepeat 2>/dev/null || echo "default (25)")
-    _run_item "$num" "key_repeat_delay" "$desc" "$before" "$after" || return 0
-    [ "$DRY_RUN" = true ] && return 0
-    dfw write NSGlobalDomain InitialKeyRepeat -int 10
-    ok "InitialKeyRepeat = 10  (rollback: defaults delete NSGlobalDomain InitialKeyRepeat)"
+    local current default="25" optimized="10"
+    current=$(dfw read NSGlobalDomain InitialKeyRepeat 2>/dev/null || echo "(not set)")
+    _run_item "$num" "key_repeat_delay" "$desc" "$current" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
+    if [ "$_rc" -eq 2 ]; then
+        dfw delete NSGlobalDomain InitialKeyRepeat 2>/dev/null || true
+        ok "InitialKeyRepeat reset to macOS default (25)"
+    else
+        dfw write NSGlobalDomain InitialKeyRepeat -int 10
+        ok "InitialKeyRepeat = 10"
+    fi
 }
 
 apply_press_and_hold() {
     local num="$1" desc="$2"
-    local before after="false"
-    before=$(dfw read NSGlobalDomain ApplePressAndHoldEnabled 2>/dev/null || echo "default (true)")
-    _run_item "$num" "press_and_hold" "$desc" "$before" "$after" || return 0
-    [ "$DRY_RUN" = true ] && return 0
-    dfw write NSGlobalDomain ApplePressAndHoldEnabled -bool false
-    ok "PressAndHold = false  (rollback: defaults delete NSGlobalDomain ApplePressAndHoldEnabled)"
+    local current default="true" optimized="false"
+    current=$(dfw read NSGlobalDomain ApplePressAndHoldEnabled 2>/dev/null || echo "(not set)")
+    _run_item "$num" "press_and_hold" "$desc" "$current" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
+    if [ "$_rc" -eq 2 ]; then
+        dfw delete NSGlobalDomain ApplePressAndHoldEnabled 2>/dev/null || true
+        ok "ApplePressAndHoldEnabled reset to macOS default (true)"
+    else
+        dfw write NSGlobalDomain ApplePressAndHoldEnabled -bool false
+        ok "PressAndHold = false"
+    fi
 }
 
 apply_touchid_sudo() {
     local num="$1" desc="$2"
     local PAM_FILE="/etc/pam.d/sudo_local"
     local PAM_LINE="auth       sufficient     pam_tid.so"
-    local before after="pam_tid.so added to $PAM_FILE"
+    local current default="not present" optimized="pam_tid.so added to $PAM_FILE"
 
     if [ -f "$PAM_FILE" ] && grep -q "pam_tid.so" "$PAM_FILE" 2>/dev/null; then
-        before="already enabled"
+        current="already enabled"
     else
-        before="not enabled"
+        current="not enabled"
     fi
-    _run_item "$num" "touchid_sudo" "$desc" "$before" "$after" || return 0
-    [ "$DRY_RUN" = true ] && return 0
-
-    if ! grep -q "pam_tid.so" "$PAM_FILE" 2>/dev/null; then
-        # Create or prepend to sudo_local
-        if [ ! -f "$PAM_FILE" ]; then
-            printf "# sudo_local: managed by optimizations.sh\n%s\n" "$PAM_LINE" \
-                | sudo tee "$PAM_FILE" > /dev/null
-        else
-            local tmp
-            tmp=$(mktemp)
-            # Insert after first non-comment line or at top
-            awk -v line="$PAM_LINE" '
-                !inserted && /^auth/ { print line; inserted=1 }
-                { print }
-                END { if (!inserted) print line }
-            ' "$PAM_FILE" > "$tmp"
-            sudo cp "$tmp" "$PAM_FILE"
-            rm -f "$tmp"
+    _run_item "$num" "touchid_sudo" "$desc" "$current" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
+    if [ "$_rc" -eq 2 ]; then
+        # Restore default: remove pam_tid.so line
+        if [ -f "$PAM_FILE" ]; then
+            local tmp; tmp=$(mktemp)
+            grep -v "pam_tid.so" "$PAM_FILE" > "$tmp"
+            sudo cp "$tmp" "$PAM_FILE"; rm -f "$tmp"
         fi
-        ok "Touch ID sudo enabled in $PAM_FILE  (rollback: remove 'pam_tid.so' line from $PAM_FILE)"
+        ok "Touch ID sudo line removed from $PAM_FILE"
     else
-        ok "Touch ID sudo already active in $PAM_FILE"
+        if ! grep -q "pam_tid.so" "$PAM_FILE" 2>/dev/null; then
+            if [ ! -f "$PAM_FILE" ]; then
+                printf "# sudo_local: managed by optimizations.sh\n%s\n" "$PAM_LINE" \
+                    | sudo tee "$PAM_FILE" > /dev/null
+            else
+                local tmp; tmp=$(mktemp)
+                awk -v line="$PAM_LINE" '
+                    !inserted && /^auth/ { print line; inserted=1 }
+                    { print }
+                    END { if (!inserted) print line }
+                ' "$PAM_FILE" > "$tmp"
+                sudo cp "$tmp" "$PAM_FILE"; rm -f "$tmp"
+            fi
+        fi
+        ok "Touch ID sudo enabled in $PAM_FILE"
+    fi
+}
+
+apply_text_substitution() {
+    local num="$1" desc="$2"
+    local _sq _sd _ac _ps
+    _sq=$(dfw read NSGlobalDomain NSAutomaticQuoteSubstitutionEnabled 2>/dev/null || echo "(not set — ON)")
+    _sd=$(dfw read NSGlobalDomain NSAutomaticDashSubstitutionEnabled  2>/dev/null || echo "(not set — ON)")
+    _ac=$(dfw read NSGlobalDomain NSAutomaticCapitalizationEnabled    2>/dev/null || echo "(not set — ON)")
+    _ps=$(dfw read NSGlobalDomain NSAutomaticPeriodSubstitutionEnabled 2>/dev/null || echo "(not set — ON)")
+    local current="quotes=${_sq} dashes=${_sd} caps=${_ac} period=${_ps}"
+    local default="all ON (system defaults)" optimized="all OFF"
+    _run_item "$num" "text_substitution" "$desc" "$current" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
+    if [ "$_rc" -eq 2 ]; then
+        dfw write NSGlobalDomain NSAutomaticQuoteSubstitutionEnabled  -bool true
+        dfw write NSGlobalDomain NSAutomaticDashSubstitutionEnabled   -bool true
+        dfw write NSGlobalDomain NSAutomaticCapitalizationEnabled     -bool true
+        dfw write NSGlobalDomain NSAutomaticPeriodSubstitutionEnabled -bool true
+        ok "Text substitutions reset to macOS defaults (all ON)"
+    else
+        dfw write NSGlobalDomain NSAutomaticQuoteSubstitutionEnabled  -bool false
+        dfw write NSGlobalDomain NSAutomaticDashSubstitutionEnabled   -bool false
+        dfw write NSGlobalDomain NSAutomaticCapitalizationEnabled     -bool false
+        dfw write NSGlobalDomain NSAutomaticPeriodSubstitutionEnabled -bool false
+        ok "Smart quotes, smart dashes, auto-caps, and period substitution disabled"
+    fi
+}
+
+apply_sudo_timeout() {
+    local num="$1" desc="$2"
+    local SUDOERS_FILE="/etc/sudoers.d/sudo_timeout"
+    local current default="5 min (system default)" optimized="30 min"
+    if [ -f "$SUDOERS_FILE" ]; then
+        current=$(grep "timestamp_timeout" "$SUDOERS_FILE" 2>/dev/null | grep -o '[0-9]*' || echo "custom")
+        current="${current} min (from $SUDOERS_FILE)"
+    else
+        current="5 min (default — no sudoers.d file)"
+    fi
+    _run_item "$num" "sudo_timeout" "$desc" "$current" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
+    if [ "$_rc" -eq 2 ]; then
+        sudo rm -f "$SUDOERS_FILE"
+        ok "sudo_timeout file removed — sudo reverts to system default (5 min)"
+    else
+        # visudo -c validates before installing; write to temp then install
+        local _tmp
+        _tmp=$(mktemp)
+        printf 'Defaults timestamp_timeout=30\n' > "$_tmp"
+        if sudo visudo -c -f "$_tmp" > /dev/null 2>&1; then
+            sudo cp "$_tmp" "$SUDOERS_FILE"
+            sudo chmod 440 "$SUDOERS_FILE"
+            ok "sudo timestamp_timeout = 30 min (written to $SUDOERS_FILE)"
+        else
+            warn "visudo validation failed — sudo_timeout not applied"
+        fi
+        rm -f "$_tmp"
     fi
 }
 
@@ -504,69 +591,104 @@ apply_touchid_sudo() {
 
 apply_trackpad_speed() {
     local num="$1" desc="$2"
-    local before after="3.0"
-    before=$(dfw read NSGlobalDomain com.apple.trackpad.scaling 2>/dev/null || echo "default")
-    _run_item "$num" "trackpad_speed" "$desc" "$before" "$after" || return 0
-    [ "$DRY_RUN" = true ] && return 0
-    dfw write NSGlobalDomain com.apple.trackpad.scaling -float 3.0
-    ok "trackpad.scaling = 3.0"
+    local current default="1.5" optimized="3.0"
+    current=$(dfw read NSGlobalDomain com.apple.trackpad.scaling 2>/dev/null || echo "(not set)")
+    _run_item "$num" "trackpad_speed" "$desc" "$current" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
+    if [ "$_rc" -eq 2 ]; then
+        dfw write NSGlobalDomain com.apple.trackpad.scaling -float 1.5
+        ok "trackpad.scaling reset to macOS default (1.5)"
+    else
+        dfw write NSGlobalDomain com.apple.trackpad.scaling -float 3.0
+        ok "trackpad.scaling = 3.0"
+    fi
 }
 
 apply_mouse_speed() {
     local num="$1" desc="$2"
-    local before after="3.0"
-    before=$(dfw read NSGlobalDomain com.apple.mouse.scaling 2>/dev/null || echo "default")
-    _run_item "$num" "mouse_speed" "$desc" "$before" "$after" || return 0
-    [ "$DRY_RUN" = true ] && return 0
-    dfw write NSGlobalDomain com.apple.mouse.scaling -float 3.0
-    ok "mouse.scaling = 3.0"
+    local current default="1.5" optimized="3.0"
+    current=$(dfw read NSGlobalDomain com.apple.mouse.scaling 2>/dev/null || echo "(not set)")
+    _run_item "$num" "mouse_speed" "$desc" "$current" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
+    if [ "$_rc" -eq 2 ]; then
+        dfw write NSGlobalDomain com.apple.mouse.scaling -float 1.5
+        ok "mouse.scaling reset to macOS default (1.5)"
+    else
+        dfw write NSGlobalDomain com.apple.mouse.scaling -float 3.0
+        ok "mouse.scaling = 3.0"
+    fi
 }
 
 apply_spring_load() {
     local num="$1" desc="$2"
-    local before after="0.1"
-    before=$(dfw read NSGlobalDomain com.apple.springing.delay 2>/dev/null || echo "default (0.5)")
-    _run_item "$num" "spring_load" "$desc" "$before" "$after" || return 0
-    [ "$DRY_RUN" = true ] && return 0
-    dfw write NSGlobalDomain com.apple.springing.delay -float 0.1
-    dfw write NSGlobalDomain com.apple.springing.enabled -bool true
-    ok "springing.delay = 0.1"
+    local current default="0.5 (enabled)" optimized="0.1 (enabled)"
+    current=$(dfw read NSGlobalDomain com.apple.springing.delay 2>/dev/null || echo "(not set)")
+    _run_item "$num" "spring_load" "$desc" "$current" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
+    if [ "$_rc" -eq 2 ]; then
+        dfw write NSGlobalDomain com.apple.springing.delay -float 0.5
+        dfw write NSGlobalDomain com.apple.springing.enabled -bool true
+        ok "springing.delay reset to macOS default (0.5)"
+    else
+        dfw write NSGlobalDomain com.apple.springing.delay -float 0.1
+        dfw write NSGlobalDomain com.apple.springing.enabled -bool true
+        ok "springing.delay = 0.1"
+    fi
 }
 
 apply_tap_to_click() {
     local num="$1" desc="$2"
-    local before after="true (both domains + currentHost)"
-    before=$(dfw read com.apple.AppleMultitouchTrackpad Clicking 2>/dev/null || echo "default (false)")
-    _run_item "$num" "tap_to_click" "$desc" "$before" "$after" || return 0
-    [ "$DRY_RUN" = true ] && return 0
-    dfw write com.apple.AppleMultitouchTrackpad Clicking -bool true
-    dfw write com.apple.driver.AppleBluetoothMultitouch.trackpad Clicking -bool true
-    dfw -currentHost write com.apple.AppleMultitouchTrackpad Clicking -bool true
-    dfw -currentHost write com.apple.driver.AppleBluetoothMultitouch.trackpad Clicking -bool true
-    dfw write NSGlobalDomain com.apple.mouse.tapBehavior -int 1
-    dfw -currentHost write NSGlobalDomain com.apple.mouse.tapBehavior -int 1
-    ok "Tap-to-click enabled"
+    local current default="false" optimized="true"
+    current=$(dfw read com.apple.AppleMultitouchTrackpad Clicking 2>/dev/null || echo "(not set)")
+    _run_item "$num" "tap_to_click" "$desc" "$current" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
+    if [ "$_rc" -eq 2 ]; then
+        dfw write com.apple.AppleMultitouchTrackpad Clicking -bool false
+        dfw write com.apple.driver.AppleBluetoothMultitouch.trackpad Clicking -bool false
+        dfw -currentHost write com.apple.AppleMultitouchTrackpad Clicking -bool false
+        dfw -currentHost write com.apple.driver.AppleBluetoothMultitouch.trackpad Clicking -bool false
+        dfw write NSGlobalDomain com.apple.mouse.tapBehavior -int 0
+        dfw -currentHost write NSGlobalDomain com.apple.mouse.tapBehavior -int 0
+        ok "Tap-to-click reset to macOS default (disabled)"
+    else
+        dfw write com.apple.AppleMultitouchTrackpad Clicking -bool true
+        dfw write com.apple.driver.AppleBluetoothMultitouch.trackpad Clicking -bool true
+        dfw -currentHost write com.apple.AppleMultitouchTrackpad Clicking -bool true
+        dfw -currentHost write com.apple.driver.AppleBluetoothMultitouch.trackpad Clicking -bool true
+        dfw write NSGlobalDomain com.apple.mouse.tapBehavior -int 1
+        dfw -currentHost write NSGlobalDomain com.apple.mouse.tapBehavior -int 1
+        ok "Tap-to-click enabled"
+    fi
 }
 
 apply_tap_to_drag() {
     local num="$1" desc="$2"
-    local before after="true"
-    before=$(dfw read com.apple.AppleMultitouchTrackpad Dragging 2>/dev/null || echo "default (false)")
-    _run_item "$num" "tap_to_drag" "$desc" "$before" "$after" || return 0
-    [ "$DRY_RUN" = true ] && return 0
-    dfw write com.apple.AppleMultitouchTrackpad Dragging -bool true
-    dfw write com.apple.driver.AppleBluetoothMultitouch.trackpad Dragging -bool true
-    dfw -currentHost write com.apple.AppleMultitouchTrackpad Dragging -bool true
-    dfw -currentHost write com.apple.driver.AppleBluetoothMultitouch.trackpad Dragging -bool true
-    ok "Tap-to-drag enabled"
+    local current default="false" optimized="true"
+    current=$(dfw read com.apple.AppleMultitouchTrackpad Dragging 2>/dev/null || echo "(not set)")
+    _run_item "$num" "tap_to_drag" "$desc" "$current" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
+    if [ "$_rc" -eq 2 ]; then
+        dfw write com.apple.AppleMultitouchTrackpad Dragging -bool false
+        dfw write com.apple.driver.AppleBluetoothMultitouch.trackpad Dragging -bool false
+        dfw -currentHost write com.apple.AppleMultitouchTrackpad Dragging -bool false
+        dfw -currentHost write com.apple.driver.AppleBluetoothMultitouch.trackpad Dragging -bool false
+        ok "Tap-to-drag reset to macOS default (disabled)"
+    else
+        dfw write com.apple.AppleMultitouchTrackpad Dragging -bool true
+        dfw write com.apple.driver.AppleBluetoothMultitouch.trackpad Dragging -bool true
+        dfw -currentHost write com.apple.AppleMultitouchTrackpad Dragging -bool true
+        dfw -currentHost write com.apple.driver.AppleBluetoothMultitouch.trackpad Dragging -bool true
+        ok "Tap-to-drag enabled"
+    fi
 }
 
 apply_three_finger_drag() {
     local num="$1" desc="$2"
-    local before after="false (MiddleClick uses 3 fingers)"
-    before=$(dfw read com.apple.AppleMultitouchTrackpad TrackpadThreeFingerDrag 2>/dev/null || echo "default")
-    _run_item "$num" "three_finger_drag" "$desc" "$before" "$after" || return 0
-    [ "$DRY_RUN" = true ] && return 0
+    local current default="false" optimized="false (MiddleClick uses 3 fingers)"
+    current=$(dfw read com.apple.AppleMultitouchTrackpad TrackpadThreeFingerDrag 2>/dev/null || echo "(not set)")
+    _run_item "$num" "three_finger_drag" "$desc" "$current" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
+    # Default and optimized both disable it; 'd' is a no-op difference here
     dfw write com.apple.AppleMultitouchTrackpad TrackpadThreeFingerDrag -bool false
     dfw write com.apple.driver.AppleBluetoothMultitouch.trackpad TrackpadThreeFingerDrag -bool false
     dfw -currentHost write NSGlobalDomain com.apple.trackpad.threeFingerDragGesture -bool false
@@ -576,40 +698,52 @@ apply_three_finger_drag() {
 
 apply_three_finger_tap() {
     local num="$1" desc="$2"
-    local before after="0 (disabled)"
-    before=$(dfw read com.apple.AppleMultitouchTrackpad TrackpadThreeFingerTapGesture 2>/dev/null || echo "default (2)")
-    _run_item "$num" "three_finger_tap" "$desc" "$before" "$after" || return 0
-    [ "$DRY_RUN" = true ] && return 0
-    dfw write com.apple.AppleMultitouchTrackpad TrackpadThreeFingerTapGesture -int 0
-    dfw write com.apple.driver.AppleBluetoothMultitouch.trackpad TrackpadThreeFingerTapGesture -int 0
-    ok "3-finger tap Look Up disabled"
+    local current default="2 (Look Up)" optimized="0 (disabled)"
+    current=$(dfw read com.apple.AppleMultitouchTrackpad TrackpadThreeFingerTapGesture 2>/dev/null || echo "(not set)")
+    _run_item "$num" "three_finger_tap" "$desc" "$current" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
+    if [ "$_rc" -eq 2 ]; then
+        dfw write com.apple.AppleMultitouchTrackpad TrackpadThreeFingerTapGesture -int 2
+        dfw write com.apple.driver.AppleBluetoothMultitouch.trackpad TrackpadThreeFingerTapGesture -int 2
+        ok "3-finger tap reset to macOS default (Look Up = 2)"
+    else
+        dfw write com.apple.AppleMultitouchTrackpad TrackpadThreeFingerTapGesture -int 0
+        dfw write com.apple.driver.AppleBluetoothMultitouch.trackpad TrackpadThreeFingerTapGesture -int 0
+        ok "3-finger tap Look Up disabled"
+    fi
 }
 
 apply_natural_scroll() {
     local num="$1" desc="$2"
-    local before after="false (traditional — wheel down = page down)"
-    before=$(defaults read NSGlobalDomain com.apple.swipescrolldirection 2>/dev/null || echo "default (1=natural)")
-    _run_item "$num" "natural_scroll" "$desc" "$before" "$after" || return 0
-    [ "$DRY_RUN" = true ] && return 0
-    dfw write NSGlobalDomain com.apple.swipescrolldirection -bool false
-    dfw write com.apple.AppleMultitouchTrackpad TrackpadScroll -bool true
-    dfw write com.apple.AppleMultitouchTrackpad TrackpadHorizScroll -int 1
-    dfw write com.apple.driver.AppleBluetoothMultitouch.trackpad TrackpadScroll -bool true
-    dfw write com.apple.driver.AppleBluetoothMultitouch.trackpad TrackpadHorizScroll -int 1
-    dfw -currentHost write NSGlobalDomain com.apple.swipescrolldirection -bool false
-    ok "Scroll direction = traditional (natural scroll OFF)"
+    local current default="true (natural)" optimized="false (traditional)"
+    current=$(defaults read NSGlobalDomain com.apple.swipescrolldirection 2>/dev/null || echo "(not set)")
+    _run_item "$num" "natural_scroll" "$desc" "$current" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
+    if [ "$_rc" -eq 2 ]; then
+        dfw write NSGlobalDomain com.apple.swipescrolldirection -bool true
+        dfw -currentHost write NSGlobalDomain com.apple.swipescrolldirection -bool true
+        ok "Scroll direction reset to macOS default (natural)"
+    else
+        dfw write NSGlobalDomain com.apple.swipescrolldirection -bool false
+        dfw write com.apple.AppleMultitouchTrackpad TrackpadScroll -bool true
+        dfw write com.apple.AppleMultitouchTrackpad TrackpadHorizScroll -int 1
+        dfw write com.apple.driver.AppleBluetoothMultitouch.trackpad TrackpadScroll -bool true
+        dfw write com.apple.driver.AppleBluetoothMultitouch.trackpad TrackpadHorizScroll -int 1
+        dfw -currentHost write NSGlobalDomain com.apple.swipescrolldirection -bool false
+        ok "Scroll direction = traditional (natural scroll OFF)"
+    fi
 }
 
 # ── SPOTLIGHT ──────────────────────────────────────────────────────────────
 
 apply_spotlight_boot_volume() {
     local num="$1" desc="$2"
-    local before after="enabled on /"
-    before=$(mdutil -s / 2>/dev/null | tr -d '\n' || echo "unknown")
-    _run_item "$num" "spotlight_boot_volume" "$desc" "$before" "$after" || return 0
-    [ "$DRY_RUN" = true ] && return 0
+    local current default="enabled on /" optimized="enabled on /"
+    current=$(mdutil -s / 2>/dev/null | tr -d '\n' || echo "unknown")
+    _run_item "$num" "spotlight_boot_volume" "$desc" "$current" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
     SPOTLIGHT_CHANGED=true
-    if echo "$before" | grep -q "disabled"; then
+    if echo "$current" | grep -q "disabled"; then
         sudo mdutil -i on / 2>/dev/null || true
         ok "Spotlight indexing enabled on /"
     else
@@ -619,24 +753,30 @@ apply_spotlight_boot_volume() {
 
 apply_spotlight_external_volumes() {
     local num="$1" desc="$2"
-    local before="(scanning)" after="indexing OFF on non-boot volumes"
-    _run_item "$num" "spotlight_external_volumes" "$desc" "$before" "$after" || return 0
-    [ "$DRY_RUN" = true ] && return 0
+    local current default="enabled on external volumes" optimized="disabled on external volumes"
+    current=$(mdutil -s 2>/dev/null | grep -v "^/$" | head -3 | tr '\n' ' ' || echo "(scanning)")
+    _run_item "$num" "spotlight_external_volumes" "$desc" "$current" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
     SPOTLIGHT_CHANGED=true
     local count=0
     while IFS= read -r vol; do
         case "$vol" in /System/Volumes/*) continue ;; esac
-        sudo mdutil -i off "$vol" 2>/dev/null && count=$((count+1)) || true
+        if [ "$_rc" -eq 2 ]; then
+            sudo mdutil -i on "$vol" 2>/dev/null && count=$((count+1)) || true
+        else
+            sudo mdutil -i off "$vol" 2>/dev/null && count=$((count+1)) || true
+        fi
     done < <(mount | grep -E "apfs|hfs" | awk '{print $3}' | grep -v "^/$")
-    ok "Spotlight disabled on $count non-boot volume(s)"
+    [ "$_rc" -eq 2 ] && ok "Spotlight re-enabled on $count non-boot volume(s)" \
+                      || ok "Spotlight disabled on $count non-boot volume(s)"
 }
 
 apply_spotlight_exclusions() {
     local num="$1" desc="$2"
-    local before after="ExclusionPaths cleared"
-    before=$(dfw read com.apple.Spotlight ExclusionPaths 2>/dev/null | head -3 || echo "(none)")
-    _run_item "$num" "spotlight_exclusions" "$desc" "$before" "$after" || return 0
-    [ "$DRY_RUN" = true ] && return 0
+    local current default="(no exclusions)" optimized="ExclusionPaths cleared"
+    current=$(dfw read com.apple.Spotlight ExclusionPaths 2>/dev/null | head -3 || echo "(none)")
+    _run_item "$num" "spotlight_exclusions" "$desc" "$current" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
     SPOTLIGHT_CHANGED=true
     dfw delete com.apple.Spotlight ExclusionPaths 2>/dev/null || true
     ok "Spotlight ExclusionPaths cleared"
@@ -644,57 +784,70 @@ apply_spotlight_exclusions() {
 
 apply_spotlight_categories() {
     local num="$1" desc="$2"
-    local before="(current orderedItems)" after="Apps + Calculator + Settings only"
-    _run_item "$num" "spotlight_categories" "$desc" "$before" "$after" || return 0
-    [ "$DRY_RUN" = true ] && return 0
+    local current default="all 20 categories enabled" optimized="Apps + Calculator + Settings only"
+    current=$(dfw read com.apple.Spotlight orderedItems 2>/dev/null | grep 'name = ' | tr -d ' "' | head -5 | tr '\n' ',' || echo "(not set)")
+    _run_item "$num" "spotlight_categories" "$desc" "$current" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
     SPOTLIGHT_CHANGED=true
-    dfw write com.apple.Spotlight orderedItems -array \
-        '{ enabled = 1; name = APPLICATIONS; }' \
-        '{ enabled = 1; name = "MENU_EXPRESSION"; }' \
-        '{ enabled = 1; name = "SYSTEM_PREFS"; }' \
-        '{ enabled = 0; name = "MENU_WEBSEARCH"; }' \
-        '{ enabled = 0; name = "MENU_SPOTLIGHT_SUGGESTIONS"; }' \
-        '{ enabled = 0; name = BOOKMARKS; }' \
-        '{ enabled = 0; name = MUSIC; }' \
-        '{ enabled = 0; name = MOVIES; }' \
-        '{ enabled = 0; name = FONTS; }' \
-        '{ enabled = 0; name = MESSAGES; }' \
-        '{ enabled = 0; name = IMAGES; }' \
-        '{ enabled = 0; name = DOCUMENTS; }' \
-        '{ enabled = 0; name = DIRECTORIES; }' \
-        '{ enabled = 0; name = PRESENTATIONS; }' \
-        '{ enabled = 0; name = SPREADSHEETS; }' \
-        '{ enabled = 0; name = PDF; }' \
-        '{ enabled = 0; name = CONTACT; }' \
-        '{ enabled = 0; name = "EVENT_TODO"; }' \
-        '{ enabled = 0; name = "MENU_OTHER"; }' \
-        '{ enabled = 0; name = "MENU_DEFINITION"; }' \
-        '{ enabled = 0; name = SOURCE; }'
+    if [ "$_rc" -eq 2 ]; then
+        dfw delete com.apple.Spotlight orderedItems 2>/dev/null || true
+        ok "Spotlight categories reset to macOS default (all enabled)"
+    else
+        dfw write com.apple.Spotlight orderedItems -array \
+            '{ enabled = 1; name = APPLICATIONS; }' \
+            '{ enabled = 1; name = "MENU_EXPRESSION"; }' \
+            '{ enabled = 1; name = "SYSTEM_PREFS"; }' \
+            '{ enabled = 0; name = "MENU_WEBSEARCH"; }' \
+            '{ enabled = 0; name = "MENU_SPOTLIGHT_SUGGESTIONS"; }' \
+            '{ enabled = 0; name = BOOKMARKS; }' \
+            '{ enabled = 0; name = MUSIC; }' \
+            '{ enabled = 0; name = MOVIES; }' \
+            '{ enabled = 0; name = FONTS; }' \
+            '{ enabled = 0; name = MESSAGES; }' \
+            '{ enabled = 0; name = IMAGES; }' \
+            '{ enabled = 0; name = DOCUMENTS; }' \
+            '{ enabled = 0; name = DIRECTORIES; }' \
+            '{ enabled = 0; name = PRESENTATIONS; }' \
+            '{ enabled = 0; name = SPREADSHEETS; }' \
+            '{ enabled = 0; name = PDF; }' \
+            '{ enabled = 0; name = CONTACT; }' \
+            '{ enabled = 0; name = "EVENT_TODO"; }' \
+            '{ enabled = 0; name = "MENU_OTHER"; }' \
+            '{ enabled = 0; name = "MENU_DEFINITION"; }' \
+            '{ enabled = 0; name = SOURCE; }'
+        ok "Spotlight categories set to Apps + Calculator + Settings"
+    fi
     launchctl kickstart -k "gui/$REAL_UID/com.apple.Spotlight" 2>/dev/null || \
         killall Spotlight 2>/dev/null || true
-    ok "Spotlight categories set to Apps + Calculator + Settings"
 }
 
 apply_spotlight_siri() {
     local num="$1" desc="$2"
-    local before after="false"
-    before=$(dfw read com.apple.Spotlight SiriSuggestionsEnabled 2>/dev/null || echo "default (true)")
-    _run_item "$num" "spotlight_siri" "$desc" "$before" "$after" || return 0
-    [ "$DRY_RUN" = true ] && return 0
+    local current default="true (Siri suggestions on)" optimized="false"
+    current=$(dfw read com.apple.Spotlight SiriSuggestionsEnabled 2>/dev/null || echo "(not set)")
+    _run_item "$num" "spotlight_siri" "$desc" "$current" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
     SPOTLIGHT_CHANGED=true
-    dfw write com.apple.Spotlight SiriSuggestionsEnabled -bool false
-    dfw write com.apple.Spotlight ShowSiriSuggestionsInSpotlight -bool false
-    dfw write com.apple.lookup.shared LookupSuggestionsDisabled -bool true 2>/dev/null || true
-    ok "Siri suggestions in Spotlight disabled"
+    if [ "$_rc" -eq 2 ]; then
+        dfw write com.apple.Spotlight SiriSuggestionsEnabled -bool true
+        dfw write com.apple.Spotlight ShowSiriSuggestionsInSpotlight -bool true
+        dfw write com.apple.lookup.shared LookupSuggestionsDisabled -bool false 2>/dev/null || true
+        ok "Siri suggestions in Spotlight reset to macOS default (enabled)"
+    else
+        dfw write com.apple.Spotlight SiriSuggestionsEnabled -bool false
+        dfw write com.apple.Spotlight ShowSiriSuggestionsInSpotlight -bool false
+        dfw write com.apple.lookup.shared LookupSuggestionsDisabled -bool true 2>/dev/null || true
+        ok "Siri suggestions in Spotlight disabled"
+    fi
 }
 
 apply_spotlight_pref_rules() {
     local num="$1" desc="$2"
-    local before after="EnabledPreferenceRules deleted"
-    before=$(dfw read com.apple.Spotlight EnabledPreferenceRules 2>/dev/null | wc -l | tr -d ' ' || echo "0")
-    before="$before entries"
-    _run_item "$num" "spotlight_pref_rules" "$desc" "$before" "$after" || return 0
-    [ "$DRY_RUN" = true ] && return 0
+    local current default="(populated by system)" optimized="EnabledPreferenceRules deleted"
+    current=$(dfw read com.apple.Spotlight EnabledPreferenceRules 2>/dev/null | wc -l | tr -d ' ' || echo "0")
+    current="${current} entries"
+    _run_item "$num" "spotlight_pref_rules" "$desc" "$current" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
     SPOTLIGHT_CHANGED=true
     dfw delete com.apple.Spotlight EnabledPreferenceRules 2>/dev/null || true
     ok "Spotlight EnabledPreferenceRules purged"
@@ -704,175 +857,263 @@ apply_spotlight_pref_rules() {
 
 apply_window_animations() {
     local num="$1" desc="$2"
-    local before after="false"
-    before=$(dfw read NSGlobalDomain NSAutomaticWindowAnimationsEnabled 2>/dev/null || echo "default (true)")
-    _run_item "$num" "window_animations" "$desc" "$before" "$after" || return 0
-    [ "$DRY_RUN" = true ] && return 0
-    dfw write NSGlobalDomain NSAutomaticWindowAnimationsEnabled -bool false
-    ok "NSAutomaticWindowAnimationsEnabled = false"
+    local current default="true" optimized="false"
+    current=$(dfw read NSGlobalDomain NSAutomaticWindowAnimationsEnabled 2>/dev/null || echo "(not set)")
+    _run_item "$num" "window_animations" "$desc" "$current" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
+    if [ "$_rc" -eq 2 ]; then
+        dfw delete NSGlobalDomain NSAutomaticWindowAnimationsEnabled 2>/dev/null || true
+        ok "NSAutomaticWindowAnimationsEnabled reset to macOS default (true)"
+    else
+        dfw write NSGlobalDomain NSAutomaticWindowAnimationsEnabled -bool false
+        ok "NSAutomaticWindowAnimationsEnabled = false"
+    fi
 }
 
 apply_window_resize_time() {
     local num="$1" desc="$2"
-    local before after="0.001"
-    before=$(dfw read NSGlobalDomain NSWindowResizeTime 2>/dev/null || echo "default (0.2)")
-    _run_item "$num" "window_resize_time" "$desc" "$before" "$after" || return 0
-    [ "$DRY_RUN" = true ] && return 0
-    dfw write NSGlobalDomain NSWindowResizeTime -float 0.001
-    ok "NSWindowResizeTime = 0.001"
+    local current default="0.2" optimized="0.001"
+    current=$(dfw read NSGlobalDomain NSWindowResizeTime 2>/dev/null || echo "(not set)")
+    _run_item "$num" "window_resize_time" "$desc" "$current" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
+    if [ "$_rc" -eq 2 ]; then
+        dfw delete NSGlobalDomain NSWindowResizeTime 2>/dev/null || true
+        ok "NSWindowResizeTime reset to macOS default (0.2)"
+    else
+        dfw write NSGlobalDomain NSWindowResizeTime -float 0.001
+        ok "NSWindowResizeTime = 0.001"
+    fi
 }
 
 apply_scroll_animation() {
     local num="$1" desc="$2"
-    local before after="false"
-    before=$(dfw read NSGlobalDomain NSScrollAnimationEnabled 2>/dev/null || echo "default (true)")
-    _run_item "$num" "scroll_animation" "$desc" "$before" "$after" || return 0
-    [ "$DRY_RUN" = true ] && return 0
-    dfw write NSGlobalDomain NSScrollAnimationEnabled -bool false
-    ok "NSScrollAnimationEnabled = false"
+    local current default="true" optimized="false"
+    current=$(dfw read NSGlobalDomain NSScrollAnimationEnabled 2>/dev/null || echo "(not set)")
+    _run_item "$num" "scroll_animation" "$desc" "$current" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
+    if [ "$_rc" -eq 2 ]; then
+        dfw delete NSGlobalDomain NSScrollAnimationEnabled 2>/dev/null || true
+        ok "NSScrollAnimationEnabled reset to macOS default (true)"
+    else
+        dfw write NSGlobalDomain NSScrollAnimationEnabled -bool false
+        ok "NSScrollAnimationEnabled = false"
+    fi
 }
 
 apply_rubber_band() {
     local num="$1" desc="$2"
-    local before after="false"
-    before=$(dfw read -g NSScrollViewRubberbanding 2>/dev/null || echo "default (true)")
-    _run_item "$num" "rubber_band" "$desc" "$before" "$after" || return 0
-    [ "$DRY_RUN" = true ] && return 0
-    dfw write -g NSScrollViewRubberbanding -bool false
-    ok "NSScrollViewRubberbanding = false"
+    local current default="true" optimized="false"
+    current=$(dfw read -g NSScrollViewRubberbanding 2>/dev/null || echo "(not set)")
+    _run_item "$num" "rubber_band" "$desc" "$current" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
+    if [ "$_rc" -eq 2 ]; then
+        dfw delete -g NSScrollViewRubberbanding 2>/dev/null || true
+        ok "NSScrollViewRubberbanding reset to macOS default (true)"
+    else
+        dfw write -g NSScrollViewRubberbanding -bool false
+        ok "NSScrollViewRubberbanding = false"
+    fi
 }
 
 apply_reduce_motion() {
     local num="$1" desc="$2"
-    local before after="true"
-    before=$(dfw read com.apple.universalaccess reduceMotion 2>/dev/null || echo "default (false)")
-    _run_item "$num" "reduce_motion" "$desc" "$before" "$after" || return 0
-    [ "$DRY_RUN" = true ] && return 0
-    dfw write com.apple.universalaccess reduceMotion -bool true
-    ok "reduceMotion = true"
+    local current default="false" optimized="true"
+    current=$(dfw read com.apple.universalaccess reduceMotion 2>/dev/null || echo "(not set)")
+    _run_item "$num" "reduce_motion" "$desc" "$current" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
+    if [ "$_rc" -eq 2 ]; then
+        dfw write com.apple.universalaccess reduceMotion -bool false
+        ok "reduceMotion reset to macOS default (false)"
+    else
+        dfw write com.apple.universalaccess reduceMotion -bool true
+        ok "reduceMotion = true"
+    fi
 }
 
 apply_desktop_tinting() {
     local num="$1" desc="$2"
-    local before after="true"
-    before=$(dfw read NSGlobalDomain AppleReduceDesktopTinting 2>/dev/null || echo "default (false)")
-    _run_item "$num" "desktop_tinting" "$desc" "$before" "$after" || return 0
-    [ "$DRY_RUN" = true ] && return 0
-    dfw write NSGlobalDomain AppleReduceDesktopTinting -bool true
-    ok "AppleReduceDesktopTinting = true"
+    local current default="false (tinting on)" optimized="true (tinting reduced)"
+    current=$(dfw read NSGlobalDomain AppleReduceDesktopTinting 2>/dev/null || echo "(not set)")
+    _run_item "$num" "desktop_tinting" "$desc" "$current" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
+    if [ "$_rc" -eq 2 ]; then
+        dfw delete NSGlobalDomain AppleReduceDesktopTinting 2>/dev/null || true
+        ok "AppleReduceDesktopTinting reset to macOS default (false)"
+    else
+        dfw write NSGlobalDomain AppleReduceDesktopTinting -bool true
+        ok "AppleReduceDesktopTinting = true"
+    fi
 }
 
 apply_menubar_blur() {
     local num="$1" desc="$2"
-    local before after="false (transparent/black, zero compositing)"
-    before=$(dfw read NSGlobalDomain SLSMenuBarUseBlurredAppearance 2>/dev/null || echo "default (true)")
-    _run_item "$num" "menubar_blur" "$desc" "$before" "$after" || return 0
-    [ "$DRY_RUN" = true ] && return 0
-    dfw write NSGlobalDomain SLSMenuBarUseBlurredAppearance -bool false
-    ok "SLSMenuBarUseBlurredAppearance = false"
+    local current default="true (blur on)" optimized="false (no blur)"
+    current=$(dfw read NSGlobalDomain SLSMenuBarUseBlurredAppearance 2>/dev/null || echo "(not set)")
+    _run_item "$num" "menubar_blur" "$desc" "$current" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
+    if [ "$_rc" -eq 2 ]; then
+        dfw delete NSGlobalDomain SLSMenuBarUseBlurredAppearance 2>/dev/null || true
+        ok "SLSMenuBarUseBlurredAppearance reset to macOS default (true)"
+    else
+        dfw write NSGlobalDomain SLSMenuBarUseBlurredAppearance -bool false
+        ok "SLSMenuBarUseBlurredAppearance = false"
+    fi
 }
 
 # ── DOCK ───────────────────────────────────────────────────────────────────
 
 apply_dock_autohide() {
     local num="$1" desc="$2"
-    local before after="true"
-    before=$(dfw read com.apple.dock autohide 2>/dev/null || echo "default (false)")
-    _run_item "$num" "dock_autohide" "$desc" "$before" "$after" || return 0
-    [ "$DRY_RUN" = true ] && return 0
-    dfw write com.apple.dock autohide -bool true
-    ok "Dock autohide = true"
+    local current default="false (always visible)" optimized="true (auto-hide)"
+    current=$(dfw read com.apple.dock autohide 2>/dev/null || echo "(not set)")
+    _run_item "$num" "dock_autohide" "$desc" "$current" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
+    if [ "$_rc" -eq 2 ]; then
+        dfw write com.apple.dock autohide -bool false
+        ok "Dock autohide reset to macOS default (false)"
+    else
+        dfw write com.apple.dock autohide -bool true
+        ok "Dock autohide = true"
+    fi
 }
 
 apply_dock_autohide_delay() {
     local num="$1" desc="$2"
-    local before after="0"
-    before=$(dfw read com.apple.dock autohide-delay 2>/dev/null || echo "default (0.5)")
-    _run_item "$num" "dock_autohide_delay" "$desc" "$before" "$after" || return 0
-    [ "$DRY_RUN" = true ] && return 0
-    dfw write com.apple.dock autohide-delay -float 0
-    ok "autohide-delay = 0"
+    local current default="0.5" optimized="0"
+    current=$(dfw read com.apple.dock autohide-delay 2>/dev/null || echo "(not set)")
+    _run_item "$num" "dock_autohide_delay" "$desc" "$current" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
+    if [ "$_rc" -eq 2 ]; then
+        dfw delete com.apple.dock autohide-delay 2>/dev/null || true
+        ok "autohide-delay reset to macOS default (0.5)"
+    else
+        dfw write com.apple.dock autohide-delay -float 0
+        ok "autohide-delay = 0"
+    fi
 }
 
 apply_dock_autohide_animation() {
     local num="$1" desc="$2"
-    local before after="0"
-    before=$(dfw read com.apple.dock autohide-time-modifier 2>/dev/null || echo "default (0.5)")
-    _run_item "$num" "dock_autohide_animation" "$desc" "$before" "$after" || return 0
-    [ "$DRY_RUN" = true ] && return 0
-    dfw write com.apple.dock autohide-time-modifier -float 0
-    ok "autohide-time-modifier = 0"
+    local current default="0.5" optimized="0.15 (fast snap)"
+    current=$(dfw read com.apple.dock autohide-time-modifier 2>/dev/null || echo "(not set)")
+    _run_item "$num" "dock_autohide_animation" "$desc" "$current" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
+    if [ "$_rc" -eq 2 ]; then
+        dfw delete com.apple.dock autohide-time-modifier 2>/dev/null || true
+        ok "autohide-time-modifier reset to macOS default (0.5)"
+    else
+        dfw write com.apple.dock autohide-time-modifier -float 0.15
+        ok "autohide-time-modifier = 0.15"
+    fi
 }
 
 apply_dock_launch_animation() {
     local num="$1" desc="$2"
-    local before after="false"
-    before=$(dfw read com.apple.dock launchanim 2>/dev/null || echo "default (true)")
-    _run_item "$num" "dock_launch_animation" "$desc" "$before" "$after" || return 0
-    [ "$DRY_RUN" = true ] && return 0
-    dfw write com.apple.dock launchanim -bool false
-    ok "launchanim = false"
+    local current default="true (bounce on launch)" optimized="false"
+    current=$(dfw read com.apple.dock launchanim 2>/dev/null || echo "(not set)")
+    _run_item "$num" "dock_launch_animation" "$desc" "$current" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
+    if [ "$_rc" -eq 2 ]; then
+        dfw delete com.apple.dock launchanim 2>/dev/null || true
+        ok "launchanim reset to macOS default (true)"
+    else
+        dfw write com.apple.dock launchanim -bool false
+        ok "launchanim = false"
+    fi
 }
 
 apply_dock_no_bounce() {
     local num="$1" desc="$2"
-    local before after="true"
-    before=$(dfw read com.apple.dock no-bouncing 2>/dev/null || echo "default (false)")
-    _run_item "$num" "dock_no_bounce" "$desc" "$before" "$after" || return 0
-    [ "$DRY_RUN" = true ] && return 0
-    dfw write com.apple.dock no-bouncing -bool true
-    ok "no-bouncing = true"
+    local current default="false (bouncing allowed)" optimized="true (bouncing disabled)"
+    current=$(dfw read com.apple.dock no-bouncing 2>/dev/null || echo "(not set)")
+    _run_item "$num" "dock_no_bounce" "$desc" "$current" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
+    if [ "$_rc" -eq 2 ]; then
+        dfw write com.apple.dock no-bouncing -bool false
+        ok "no-bouncing reset to macOS default (false)"
+    else
+        dfw write com.apple.dock no-bouncing -bool true
+        ok "no-bouncing = true"
+    fi
 }
 
 apply_dock_expose_animation() {
     local num="$1" desc="$2"
-    local before after="0"
-    before=$(dfw read com.apple.dock expose-animation-duration 2>/dev/null || echo "default (0.1)")
-    _run_item "$num" "dock_expose_animation" "$desc" "$before" "$after" || return 0
-    [ "$DRY_RUN" = true ] && return 0
-    dfw write com.apple.dock expose-animation-duration -float 0
-    ok "expose-animation-duration = 0"
+    local current default="0.1" optimized="0"
+    current=$(dfw read com.apple.dock expose-animation-duration 2>/dev/null || echo "(not set)")
+    _run_item "$num" "dock_expose_animation" "$desc" "$current" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
+    if [ "$_rc" -eq 2 ]; then
+        dfw delete com.apple.dock expose-animation-duration 2>/dev/null || true
+        ok "expose-animation-duration reset to macOS default (0.1)"
+    else
+        dfw write com.apple.dock expose-animation-duration -float 0
+        ok "expose-animation-duration = 0"
+    fi
 }
 
 apply_dock_minimize_to_app() {
     local num="$1" desc="$2"
-    local before after="true"
-    before=$(dfw read com.apple.dock minimize-to-application 2>/dev/null || echo "default (false)")
-    _run_item "$num" "dock_minimize_to_app" "$desc" "$before" "$after" || return 0
-    [ "$DRY_RUN" = true ] && return 0
-    dfw write com.apple.dock minimize-to-application -bool true
-    ok "minimize-to-application = true"
+    local current default="false (separate Dock slot)" optimized="true (minimize into app icon)"
+    current=$(dfw read com.apple.dock minimize-to-application 2>/dev/null || echo "(not set)")
+    _run_item "$num" "dock_minimize_to_app" "$desc" "$current" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
+    if [ "$_rc" -eq 2 ]; then
+        dfw write com.apple.dock minimize-to-application -bool false
+        ok "minimize-to-application reset to macOS default (false)"
+    else
+        dfw write com.apple.dock minimize-to-application -bool true
+        ok "minimize-to-application = true"
+    fi
 }
 
 apply_dock_minimize_effect() {
     local num="$1" desc="$2"
-    local before after="scale"
-    before=$(dfw read com.apple.dock mineffect 2>/dev/null || echo "default (genie)")
-    _run_item "$num" "dock_minimize_effect" "$desc" "$before" "$after" || return 0
-    [ "$DRY_RUN" = true ] && return 0
-    dfw write com.apple.dock mineffect -string "scale"
-    ok "mineffect = scale"
+    local current default="genie" optimized="scale"
+    current=$(dfw read com.apple.dock mineffect 2>/dev/null || echo "(not set)")
+    _run_item "$num" "dock_minimize_effect" "$desc" "$current" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
+    if [ "$_rc" -eq 2 ]; then
+        dfw write com.apple.dock mineffect -string "genie"
+        ok "mineffect reset to macOS default (genie)"
+    else
+        dfw write com.apple.dock mineffect -string "scale"
+        ok "mineffect = scale"
+    fi
 }
 
 apply_dock_space_animation() {
     local num="$1" desc="$2"
-    local before after="true (animation OFF)"
-    before=$(dfw read com.apple.dock workspaces-swoosh-animation-off 2>/dev/null || echo "default (false)")
-    _run_item "$num" "dock_space_animation" "$desc" "$before" "$after" || return 0
-    [ "$DRY_RUN" = true ] && return 0
-    dfw write com.apple.dock workspaces-swoosh-animation-off -bool true
-    ok "workspaces-swoosh-animation-off = true"
+    local current default="false (swoosh animation on)" optimized="true (animation off)"
+    current=$(dfw read com.apple.dock workspaces-swoosh-animation-off 2>/dev/null || echo "(not set)")
+    _run_item "$num" "dock_space_animation" "$desc" "$current" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
+    if [ "$_rc" -eq 2 ]; then
+        dfw write com.apple.dock workspaces-swoosh-animation-off -bool false
+        ok "workspaces-swoosh-animation-off reset to macOS default (false)"
+    else
+        dfw write com.apple.dock workspaces-swoosh-animation-off -bool true
+        ok "workspaces-swoosh-animation-off = true"
+    fi
 }
 
 apply_dock_launchpad_animation() {
     local num="$1" desc="$2"
-    local before after="0 / 0"
-    before="show=$(dfw read com.apple.dock springboard-show-duration 2>/dev/null || echo 'default') hide=$(dfw read com.apple.dock springboard-hide-duration 2>/dev/null || echo 'default')"
-    _run_item "$num" "dock_launchpad_animation" "$desc" "$before" "$after" || return 0
-    [ "$DRY_RUN" = true ] && return 0
-    dfw write com.apple.dock springboard-show-duration -float 0
-    dfw write com.apple.dock springboard-hide-duration -float 0
-    ok "Launchpad animation = 0/0"
+    local _show _hide
+    _show=$(dfw read com.apple.dock springboard-show-duration 2>/dev/null || echo "(not set)")
+    _hide=$(dfw read com.apple.dock springboard-hide-duration 2>/dev/null || echo "(not set)")
+    local current="show=${_show} hide=${_hide}" default="show=0.4 hide=0.4" optimized="show=0 hide=0"
+    _run_item "$num" "dock_launchpad_animation" "$desc" "$current" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
+    if [ "$_rc" -eq 2 ]; then
+        dfw delete com.apple.dock springboard-show-duration 2>/dev/null || true
+        dfw delete com.apple.dock springboard-hide-duration 2>/dev/null || true
+        ok "Launchpad animation reset to macOS default"
+    else
+        dfw write com.apple.dock springboard-show-duration -float 0
+        dfw write com.apple.dock springboard-hide-duration -float 0
+        ok "Launchpad animation = 0/0"
+    fi
 }
 
 apply_dock_strip() {
@@ -883,27 +1124,39 @@ apply_dock_strip() {
     done
     local apps_label
     apps_label=$(IFS='+'; echo "${app_names[*]}")
-    local before="(current Dock apps)" after="$apps_label only"
-    _run_item "$num" "dock_strip" "$desc" "$before" "$after" || return 0
-    [ "$DRY_RUN" = true ] && return 0
-    dfw write com.apple.dock persistent-apps -array
-    for _app in "${MACHETE_DOCK_APPS[@]}"; do
-        # Encode spaces as %20 for the CFURLString (pure bash, no python3/CLT dependency)
-        local _url
-        _url="file://$(url_encode "$_app")/"
-        dfw write com.apple.dock persistent-apps -array-add \
-            "<dict><key>tile-data</key><dict><key>file-data</key><dict><key>_CFURLString</key><string>${_url}</string><key>_CFURLStringType</key><integer>15</integer></dict></dict><key>tile-type</key><string>file-tile</string></dict>"
-    done
-    dfw write com.apple.dock show-recents -bool false
-    ok "Dock stripped to: $apps_label"
+    local current default="Apple default apps" optimized="$apps_label only"
+    current=$(dfw read com.apple.dock persistent-apps 2>/dev/null | grep '"tile-type"' | wc -l | tr -d ' ' || echo "?")
+    current="${current} pinned apps"
+    _run_item "$num" "dock_strip" "$desc" "$current" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
+    if [ "$_rc" -eq 2 ]; then
+        # Restore default: clear custom strip so Dock reverts to system defaults on next login
+        dfw delete com.apple.dock persistent-apps 2>/dev/null || true
+        dfw write com.apple.dock show-recents -bool true
+        ok "Dock persistent-apps cleared (will restore system defaults on next Dock restart)"
+    else
+        dfw write com.apple.dock persistent-apps -array
+        for _app in "${MACHETE_DOCK_APPS[@]}"; do
+            local _url
+            _url="file://$(url_encode "$_app")/"
+            dfw write com.apple.dock persistent-apps -array-add \
+                "<dict><key>tile-data</key><dict><key>file-data</key><dict><key>_CFURLString</key><string>${_url}</string><key>_CFURLStringType</key><integer>15</integer></dict></dict><key>tile-type</key><string>file-tile</string></dict>"
+        done
+        dfw write com.apple.dock show-recents -bool false
+        ok "Dock stripped to: $apps_label"
+    fi
 }
 
 apply_hot_corners() {
     local num="$1" desc="$2"
-    local before after="all 0 (disabled)"
-    before="tl=$(dfw read com.apple.dock wvous-tl-corner 2>/dev/null || echo '?') tr=$(dfw read com.apple.dock wvous-tr-corner 2>/dev/null || echo '?') bl=$(dfw read com.apple.dock wvous-bl-corner 2>/dev/null || echo '?') br=$(dfw read com.apple.dock wvous-br-corner 2>/dev/null || echo '?')"
-    _run_item "$num" "hot_corners" "$desc" "$before" "$after" || return 0
-    [ "$DRY_RUN" = true ] && return 0
+    local _tl _tr _bl _br
+    _tl=$(dfw read com.apple.dock wvous-tl-corner 2>/dev/null || echo "0")
+    _tr=$(dfw read com.apple.dock wvous-tr-corner 2>/dev/null || echo "0")
+    _bl=$(dfw read com.apple.dock wvous-bl-corner 2>/dev/null || echo "0")
+    _br=$(dfw read com.apple.dock wvous-br-corner 2>/dev/null || echo "0")
+    local current="tl=${_tl} tr=${_tr} bl=${_bl} br=${_br}" default="all 0 (disabled)" optimized="all 0 (disabled)"
+    _run_item "$num" "hot_corners" "$desc" "$current" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
     for corner in tl tr bl br; do
         dfw write com.apple.dock "wvous-${corner}-corner"   -int 0
         dfw write com.apple.dock "wvous-${corner}-modifier" -int 0
@@ -915,137 +1168,204 @@ apply_hot_corners() {
 
 apply_finder_animations() {
     local num="$1" desc="$2"
-    local before after="animations OFF"
-    before=$(dfw read com.apple.finder DisableAllAnimations 2>/dev/null || echo "default (false)")
-    _run_item "$num" "finder_animations" "$desc" "$before" "$after" || return 0
-    [ "$DRY_RUN" = true ] && return 0
-    dfw write com.apple.finder DisableAllAnimations -bool true
-    dfw write com.apple.finder AnimateWindowZoom -bool false
-    ok "Finder animations disabled"
+    local current default="false (animations on)" optimized="true (animations off)"
+    current=$(dfw read com.apple.finder DisableAllAnimations 2>/dev/null || echo "(not set)")
+    _run_item "$num" "finder_animations" "$desc" "$current" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
+    if [ "$_rc" -eq 2 ]; then
+        dfw write com.apple.finder DisableAllAnimations -bool false
+        dfw write com.apple.finder AnimateWindowZoom -bool true
+        ok "Finder animations reset to macOS default (enabled)"
+    else
+        dfw write com.apple.finder DisableAllAnimations -bool true
+        dfw write com.apple.finder AnimateWindowZoom -bool false
+        ok "Finder animations disabled"
+    fi
 }
 
 apply_finder_hidden_files() {
     local num="$1" desc="$2"
-    local before after="true"
-    before=$(dfw read com.apple.finder AppleShowAllFiles 2>/dev/null || echo "default (false)")
-    _run_item "$num" "finder_hidden_files" "$desc" "$before" "$after" || return 0
-    [ "$DRY_RUN" = true ] && return 0
-    dfw write com.apple.finder AppleShowAllFiles -bool true
-    ok "AppleShowAllFiles = true"
+    local current default="false (hidden files concealed)" optimized="true (show all)"
+    current=$(dfw read com.apple.finder AppleShowAllFiles 2>/dev/null || echo "(not set)")
+    _run_item "$num" "finder_hidden_files" "$desc" "$current" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
+    if [ "$_rc" -eq 2 ]; then
+        dfw write com.apple.finder AppleShowAllFiles -bool false
+        ok "AppleShowAllFiles reset to macOS default (false)"
+    else
+        dfw write com.apple.finder AppleShowAllFiles -bool true
+        ok "AppleShowAllFiles = true"
+    fi
 }
 
 apply_finder_extensions() {
     local num="$1" desc="$2"
-    local before after="true"
-    before=$(dfw read NSGlobalDomain AppleShowAllExtensions 2>/dev/null || echo "default (false)")
-    _run_item "$num" "finder_extensions" "$desc" "$before" "$after" || return 0
-    [ "$DRY_RUN" = true ] && return 0
-    dfw write NSGlobalDomain AppleShowAllExtensions -bool true
-    ok "AppleShowAllExtensions = true"
+    local current default="false (extensions hidden)" optimized="true (always show)"
+    current=$(dfw read NSGlobalDomain AppleShowAllExtensions 2>/dev/null || echo "(not set)")
+    _run_item "$num" "finder_extensions" "$desc" "$current" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
+    if [ "$_rc" -eq 2 ]; then
+        dfw write NSGlobalDomain AppleShowAllExtensions -bool false
+        ok "AppleShowAllExtensions reset to macOS default (false)"
+    else
+        dfw write NSGlobalDomain AppleShowAllExtensions -bool true
+        ok "AppleShowAllExtensions = true"
+    fi
 }
 
 apply_finder_path_bar() {
     local num="$1" desc="$2"
-    local before after="true"
-    before=$(dfw read com.apple.finder ShowPathbar 2>/dev/null || echo "default (false)")
-    _run_item "$num" "finder_path_bar" "$desc" "$before" "$after" || return 0
-    [ "$DRY_RUN" = true ] && return 0
-    dfw write com.apple.finder ShowPathbar -bool true
-    ok "ShowPathbar = true"
+    local current default="false (hidden)" optimized="true (shown)"
+    current=$(dfw read com.apple.finder ShowPathbar 2>/dev/null || echo "(not set)")
+    _run_item "$num" "finder_path_bar" "$desc" "$current" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
+    if [ "$_rc" -eq 2 ]; then
+        dfw write com.apple.finder ShowPathbar -bool false
+        ok "ShowPathbar reset to macOS default (false)"
+    else
+        dfw write com.apple.finder ShowPathbar -bool true
+        ok "ShowPathbar = true"
+    fi
 }
 
 apply_finder_status_bar() {
     local num="$1" desc="$2"
-    local before after="true"
-    before=$(dfw read com.apple.finder ShowStatusBar 2>/dev/null || echo "default (false)")
-    _run_item "$num" "finder_status_bar" "$desc" "$before" "$after" || return 0
-    [ "$DRY_RUN" = true ] && return 0
-    dfw write com.apple.finder ShowStatusBar -bool true
-    ok "ShowStatusBar = true"
+    local current default="false (hidden)" optimized="true (shown)"
+    current=$(dfw read com.apple.finder ShowStatusBar 2>/dev/null || echo "(not set)")
+    _run_item "$num" "finder_status_bar" "$desc" "$current" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
+    if [ "$_rc" -eq 2 ]; then
+        dfw write com.apple.finder ShowStatusBar -bool false
+        ok "ShowStatusBar reset to macOS default (false)"
+    else
+        dfw write com.apple.finder ShowStatusBar -bool true
+        ok "ShowStatusBar = true"
+    fi
 }
 
 apply_finder_posix_title() {
     local num="$1" desc="$2"
-    local before after="true"
-    before=$(dfw read com.apple.finder _FXShowPosixPathInTitle 2>/dev/null || echo "default (false)")
-    _run_item "$num" "finder_posix_title" "$desc" "$before" "$after" || return 0
-    [ "$DRY_RUN" = true ] && return 0
-    dfw write com.apple.finder _FXShowPosixPathInTitle -bool true
-    ok "_FXShowPosixPathInTitle = true"
+    local current default="false (hidden)" optimized="true (shown)"
+    current=$(dfw read com.apple.finder _FXShowPosixPathInTitle 2>/dev/null || echo "(not set)")
+    _run_item "$num" "finder_posix_title" "$desc" "$current" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
+    if [ "$_rc" -eq 2 ]; then
+        dfw write com.apple.finder _FXShowPosixPathInTitle -bool false
+        ok "_FXShowPosixPathInTitle reset to macOS default (false)"
+    else
+        dfw write com.apple.finder _FXShowPosixPathInTitle -bool true
+        ok "_FXShowPosixPathInTitle = true"
+    fi
 }
 
 apply_finder_no_ext_warning() {
     local num="$1" desc="$2"
-    local before after="false"
-    before=$(dfw read com.apple.finder FXEnableExtensionChangeWarning 2>/dev/null || echo "default (true)")
-    _run_item "$num" "finder_no_ext_warning" "$desc" "$before" "$after" || return 0
-    [ "$DRY_RUN" = true ] && return 0
-    dfw write com.apple.finder FXEnableExtensionChangeWarning -bool false
-    ok "FXEnableExtensionChangeWarning = false"
+    local current default="true (warn on change)" optimized="false (no warning)"
+    current=$(dfw read com.apple.finder FXEnableExtensionChangeWarning 2>/dev/null || echo "(not set)")
+    _run_item "$num" "finder_no_ext_warning" "$desc" "$current" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
+    if [ "$_rc" -eq 2 ]; then
+        dfw write com.apple.finder FXEnableExtensionChangeWarning -bool true
+        ok "FXEnableExtensionChangeWarning reset to macOS default (true)"
+    else
+        dfw write com.apple.finder FXEnableExtensionChangeWarning -bool false
+        ok "FXEnableExtensionChangeWarning = false"
+    fi
 }
 
 apply_finder_no_trash_warning() {
     local num="$1" desc="$2"
-    local before after="false"
-    before=$(dfw read com.apple.finder WarnOnEmptyTrash 2>/dev/null || echo "default (true)")
-    _run_item "$num" "finder_no_trash_warning" "$desc" "$before" "$after" || return 0
-    [ "$DRY_RUN" = true ] && return 0
-    dfw write com.apple.finder WarnOnEmptyTrash -bool false
-    ok "WarnOnEmptyTrash = false"
+    local current default="true (warn on empty)" optimized="false (no warning)"
+    current=$(dfw read com.apple.finder WarnOnEmptyTrash 2>/dev/null || echo "(not set)")
+    _run_item "$num" "finder_no_trash_warning" "$desc" "$current" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
+    if [ "$_rc" -eq 2 ]; then
+        dfw write com.apple.finder WarnOnEmptyTrash -bool true
+        ok "WarnOnEmptyTrash reset to macOS default (true)"
+    else
+        dfw write com.apple.finder WarnOnEmptyTrash -bool false
+        ok "WarnOnEmptyTrash = false"
+    fi
 }
 
 apply_finder_search_current() {
     local num="$1" desc="$2"
-    local before after="SCcf (current folder)"
-    before=$(dfw read com.apple.finder FXDefaultSearchScope 2>/dev/null || echo "default (SCev=everywhere)")
-    _run_item "$num" "finder_search_current" "$desc" "$before" "$after" || return 0
-    [ "$DRY_RUN" = true ] && return 0
-    dfw write com.apple.finder FXDefaultSearchScope -string "SCcf"
-    ok "FXDefaultSearchScope = SCcf"
+    local current default="SCev (search everywhere)" optimized="SCcf (current folder)"
+    current=$(dfw read com.apple.finder FXDefaultSearchScope 2>/dev/null || echo "(not set)")
+    _run_item "$num" "finder_search_current" "$desc" "$current" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
+    if [ "$_rc" -eq 2 ]; then
+        dfw write com.apple.finder FXDefaultSearchScope -string "SCev"
+        ok "FXDefaultSearchScope reset to macOS default (SCev)"
+    else
+        dfw write com.apple.finder FXDefaultSearchScope -string "SCcf"
+        ok "FXDefaultSearchScope = SCcf"
+    fi
 }
 
 apply_finder_folders_first() {
     local num="$1" desc="$2"
-    local before after="true"
-    before=$(dfw read com.apple.finder _FXSortFoldersFirst 2>/dev/null || echo "default (false)")
-    _run_item "$num" "finder_folders_first" "$desc" "$before" "$after" || return 0
-    [ "$DRY_RUN" = true ] && return 0
-    dfw write com.apple.finder _FXSortFoldersFirst -bool true
-    dfw write com.apple.finder _FXSortFoldersFirstOnDesktop -bool true
-    ok "_FXSortFoldersFirst = true"
+    local current default="false (mixed sort)" optimized="true (folders first)"
+    current=$(dfw read com.apple.finder _FXSortFoldersFirst 2>/dev/null || echo "(not set)")
+    _run_item "$num" "finder_folders_first" "$desc" "$current" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
+    if [ "$_rc" -eq 2 ]; then
+        dfw write com.apple.finder _FXSortFoldersFirst -bool false
+        dfw write com.apple.finder _FXSortFoldersFirstOnDesktop -bool false
+        ok "_FXSortFoldersFirst reset to macOS default (false)"
+    else
+        dfw write com.apple.finder _FXSortFoldersFirst -bool true
+        dfw write com.apple.finder _FXSortFoldersFirstOnDesktop -bool true
+        ok "_FXSortFoldersFirst = true"
+    fi
 }
 
 apply_finder_home_default() {
     local num="$1" desc="$2"
-    local before after="PfHm (home folder)"
-    before=$(dfw read com.apple.finder NewWindowTarget 2>/dev/null || echo "default (PfCm)")
-    _run_item "$num" "finder_home_default" "$desc" "$before" "$after" || return 0
-    [ "$DRY_RUN" = true ] && return 0
-    dfw write com.apple.finder NewWindowTarget -string "PfHm"
-    dfw write com.apple.finder NewWindowTargetPath -string "file://$REAL_HOME/"
-    ok "NewWindowTarget = PfHm"
+    local current default="PfCm (Computer/Recents)" optimized="PfHm (home folder)"
+    current=$(dfw read com.apple.finder NewWindowTarget 2>/dev/null || echo "(not set)")
+    _run_item "$num" "finder_home_default" "$desc" "$current" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
+    if [ "$_rc" -eq 2 ]; then
+        dfw write com.apple.finder NewWindowTarget -string "PfCm"
+        dfw delete com.apple.finder NewWindowTargetPath 2>/dev/null || true
+        ok "NewWindowTarget reset to macOS default (PfCm)"
+    else
+        dfw write com.apple.finder NewWindowTarget -string "PfHm"
+        dfw write com.apple.finder NewWindowTargetPath -string "file://$REAL_HOME/"
+        ok "NewWindowTarget = PfHm"
+    fi
 }
 
 apply_finder_list_view() {
     local num="$1" desc="$2"
-    local before after="Nlsv (list)"
-    before=$(dfw read com.apple.finder FXPreferredViewStyle 2>/dev/null || echo "default (icnv)")
-    _run_item "$num" "finder_list_view" "$desc" "$before" "$after" || return 0
-    [ "$DRY_RUN" = true ] && return 0
-    dfw write com.apple.finder FXPreferredViewStyle -string "Nlsv"
-    # Also set list view as the default for all new windows via StandardViewSettings
-    dfw write com.apple.finder "FK_DefaultViewStyle" -string "Nlsv" 2>/dev/null || true
-    ok "FXPreferredViewStyle = Nlsv (list view)"
+    local current default="icnv (icon view)" optimized="Nlsv (list view)"
+    current=$(dfw read com.apple.finder FXPreferredViewStyle 2>/dev/null || echo "(not set)")
+    _run_item "$num" "finder_list_view" "$desc" "$current" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
+    if [ "$_rc" -eq 2 ]; then
+        dfw write com.apple.finder FXPreferredViewStyle -string "icnv"
+        dfw write com.apple.finder "FK_DefaultViewStyle" -string "icnv" 2>/dev/null || true
+        ok "FXPreferredViewStyle reset to macOS default (icnv)"
+    else
+        dfw write com.apple.finder FXPreferredViewStyle -string "Nlsv"
+        dfw write com.apple.finder "FK_DefaultViewStyle" -string "Nlsv" 2>/dev/null || true
+        ok "FXPreferredViewStyle = Nlsv (list view)"
+    fi
 }
 
 apply_finder_list_view_columns() {
     local num="$1" desc="$2"
-    local before="(current column config)" after="name+size+dateModified+kind visible"
-    _run_item "$num" "finder_list_view_columns" "$desc" "$before" "$after" || return 0
-    [ "$DRY_RUN" = true ] && return 0
-    # Write ExtendedListViewSettingsV2 via pure defaults write — no python3 required
-    dfw write com.apple.finder FK_StandardViewSettings -dict-add \
-        ExtendedListViewSettingsV2 "$(cat << 'PLIST'
+    local current default="(macOS default columns)" optimized="name+size+dateModified+kind visible"
+    current=$(dfw read com.apple.finder FK_StandardViewSettings 2>/dev/null | grep ExtendedListViewSettingsV2 | head -1 || echo "(not set)")
+    _run_item "$num" "finder_list_view_columns" "$desc" "$current" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
+    if [ "$_rc" -eq 2 ]; then
+        dfw delete com.apple.finder FK_StandardViewSettings 2>/dev/null || true
+        ok "Finder list view columns reset to macOS default"
+    else
+        dfw write com.apple.finder FK_StandardViewSettings -dict-add \
+            ExtendedListViewSettingsV2 "$(cat << 'PLIST'
 {
     calculateAllSizes = 0;
     columns = (
@@ -1070,41 +1390,45 @@ apply_finder_list_view_columns() {
 }
 PLIST
 )"
-    ok "Finder list view columns configured"
+        ok "Finder list view columns configured"
+    fi
 }
 
 apply_finder_list_view_icon_size() {
     local num="$1" desc="$2"
-    local before after="iconSize=16 textSize=13 useRelativeDates=true"
-    before=$(dfw read com.apple.finder StandardViewSettings 2>/dev/null | grep iconSize | head -1 | tr -d ' ' || echo "?")
-    _run_item "$num" "finder_list_view_icon_size" "$desc" "$before" "$after" || return 0
-    [ "$DRY_RUN" = true ] && return 0
-    # These are set as part of ListViewSettings inside StandardViewSettings
-    dfw write com.apple.finder StandardViewSettings -dict-add ListViewSettings \
-        "{ calculateAllSizes = 0; iconSize = 16; showIconPreview = 1; sortColumn = name; textSize = 13; useRelativeDates = 1; viewOptionsVersion = 1; }"
-    ok "List view: 16px icons, 13pt text, relative dates"
+    local current default="iconSize=16 textSize=13 useRelativeDates=false" optimized="iconSize=16 textSize=13 useRelativeDates=true"
+    current=$(dfw read com.apple.finder StandardViewSettings 2>/dev/null | grep iconSize | head -1 | tr -d ' ' || echo "(not set)")
+    _run_item "$num" "finder_list_view_icon_size" "$desc" "$current" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
+    if [ "$_rc" -eq 2 ]; then
+        dfw write com.apple.finder StandardViewSettings -dict-add ListViewSettings \
+            "{ calculateAllSizes = 0; iconSize = 16; showIconPreview = 1; sortColumn = name; textSize = 13; useRelativeDates = 0; viewOptionsVersion = 1; }"
+        ok "List view icon size reset to macOS default"
+    else
+        dfw write com.apple.finder StandardViewSettings -dict-add ListViewSettings \
+            "{ calculateAllSizes = 0; iconSize = 16; showIconPreview = 1; sortColumn = name; textSize = 13; useRelativeDates = 1; viewOptionsVersion = 1; }"
+        ok "List view: 16px icons, 13pt text, relative dates"
+    fi
 }
 
 apply_finder_toolbar() {
     local num="$1" desc="$2"
-    local before after="TB Is Shown = 1"
-    before=$(dfw read com.apple.finder "NSToolbar Configuration Browser" 2>/dev/null | grep "TB Is Shown" | tr -d ' ' || echo "default")
-    _run_item "$num" "finder_toolbar" "$desc" "$before" "$after" || return 0
-    [ "$DRY_RUN" = true ] && return 0
-    dfw write com.apple.finder "NSToolbar Configuration Browser" \
-        -dict-add "TB Is Shown" -int 1
+    local current default="1 (shown)" optimized="1 (shown)"
+    current=$(dfw read com.apple.finder "NSToolbar Configuration Browser" 2>/dev/null | grep "TB Is Shown" | tr -d ' ' || echo "(not set)")
+    _run_item "$num" "finder_toolbar" "$desc" "$current" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
+    dfw write com.apple.finder "NSToolbar Configuration Browser" -dict-add "TB Is Shown" -int 1
     ok "Finder toolbar visible"
 }
 
 apply_finder_sidebar() {
     local num="$1" desc="$2"
-    local before after="ShowSidebar=1, sidebar sections expanded"
-    before=$(dfw read com.apple.finder ShowSidebar 2>/dev/null || echo "default (1)")
-    _run_item "$num" "finder_sidebar" "$desc" "$before" "$after" || return 0
-    [ "$DRY_RUN" = true ] && return 0
+    local current default="true (shown)" optimized="true (shown, sections expanded)"
+    current=$(dfw read com.apple.finder ShowSidebar 2>/dev/null || echo "(not set)")
+    _run_item "$num" "finder_sidebar" "$desc" "$current" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
     dfw write com.apple.finder ShowSidebar -bool true
     dfw write com.apple.finder FK_AppCentricShowSidebar -int 1
-    # Expand all sidebar sections
     dfw write com.apple.finder SidebarDevicesSectionDisclosedState -bool true
     dfw write com.apple.finder SidebarPlacesSectionDisclosedState  -bool true
     dfw write com.apple.finder SidebarTagsSctionDisclosedState     -bool false
@@ -1113,140 +1437,176 @@ apply_finder_sidebar() {
 
 apply_finder_preview_pane() {
     local num="$1" desc="$2"
-    local before after="ShowPreviewPane=1 (right-side file details)"
-    before=$(dfw read com.apple.finder ShowPreviewPane 2>/dev/null || echo "default (0)")
-    _run_item "$num" "finder_preview_pane" "$desc" "$before" "$after" || return 0
-    [ "$DRY_RUN" = true ] && return 0
-    dfw write com.apple.finder ShowPreviewPane -bool true
-    ok "Finder preview pane enabled"
+    local current default="false (hidden)" optimized="true (shown)"
+    current=$(dfw read com.apple.finder ShowPreviewPane 2>/dev/null || echo "(not set)")
+    _run_item "$num" "finder_preview_pane" "$desc" "$current" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
+    if [ "$_rc" -eq 2 ]; then
+        dfw write com.apple.finder ShowPreviewPane -bool false
+        ok "ShowPreviewPane reset to macOS default (false)"
+    else
+        dfw write com.apple.finder ShowPreviewPane -bool true
+        ok "Finder preview pane enabled"
+    fi
 }
 
 apply_finder_tab_bar() {
     local num="$1" desc="$2"
-    local before after="tab bar shown"
-    before=$(dfw read com.apple.finder "NSWindowTabbingShoudShowTabBarKey-com.apple.finder.TBrowserWindow" 2>/dev/null || echo "default (0)")
-    _run_item "$num" "finder_tab_bar" "$desc" "$before" "$after" || return 0
-    [ "$DRY_RUN" = true ] && return 0
-    dfw write com.apple.finder "NSWindowTabbingShoudShowTabBarKey-com.apple.finder.TBrowserWindow" -bool true
-    ok "Finder tab bar enabled"
+    local current default="false (hidden)" optimized="true (shown)"
+    current=$(dfw read com.apple.finder "NSWindowTabbingShoudShowTabBarKey-com.apple.finder.TBrowserWindow" 2>/dev/null || echo "(not set)")
+    _run_item "$num" "finder_tab_bar" "$desc" "$current" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
+    if [ "$_rc" -eq 2 ]; then
+        dfw write com.apple.finder "NSWindowTabbingShoudShowTabBarKey-com.apple.finder.TBrowserWindow" -bool false
+        ok "Finder tab bar reset to macOS default (false)"
+    else
+        dfw write com.apple.finder "NSWindowTabbingShoudShowTabBarKey-com.apple.finder.TBrowserWindow" -bool true
+        ok "Finder tab bar enabled"
+    fi
 }
 
 apply_finder_terminal_service() {
     local num="$1" desc="$2"
-    local before after="'New Terminal at Folder' + 'New Terminal Tab at Folder' enabled"
-    # Check current state via pbs (read as real user)
-    before=$(sudo -u "$REAL_USER" defaults read pbs NSServicesStatus 2>/dev/null | grep -c "com.apple.Terminal" || echo "0")
-    before="${before} Terminal services registered"
-    _run_item "$num" "finder_terminal_service" "$desc" "$before" "$after" || return 0
-    [ "$DRY_RUN" = true ] && return 0
-    # Write to real user's pbs domain (not root's)
-    sudo -u "$REAL_USER" defaults write pbs NSServicesStatus -dict-add \
-        "com.apple.Terminal - New Terminal at Folder - newTerminalAtFolder" \
-        '{ "enabled_context_menu" = 1; "enabled_services_menu" = 1; "presentation_modes" = { ContextMenu = 1; ServicesMenu = 1; }; }'
-    sudo -u "$REAL_USER" defaults write pbs NSServicesStatus -dict-add \
-        "com.apple.Terminal - New Terminal Tab at Folder - newTerminalTabAtFolder" \
-        '{ "enabled_context_menu" = 1; "enabled_services_menu" = 1; "presentation_modes" = { ContextMenu = 1; ServicesMenu = 1; }; }'
-    /System/Library/CoreServices/pbs -flush 2>/dev/null || killall pbs 2>/dev/null || true
-    ok "Terminal services enabled — right-click folder → Services → New Terminal at Folder"
+    local current default="0 Terminal services registered" optimized="New Terminal at Folder + Tab enabled"
+    current=$(sudo -u "$REAL_USER" defaults read pbs NSServicesStatus 2>/dev/null | grep -c "com.apple.Terminal" || echo "0")
+    current="${current} Terminal services registered"
+    _run_item "$num" "finder_terminal_service" "$desc" "$current" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
+    if [ "$_rc" -eq 2 ]; then
+        sudo -u "$REAL_USER" defaults delete pbs NSServicesStatus 2>/dev/null || true
+        /System/Library/CoreServices/pbs -flush 2>/dev/null || killall pbs 2>/dev/null || true
+        ok "Terminal services removed from pbs"
+    else
+        sudo -u "$REAL_USER" defaults write pbs NSServicesStatus -dict-add \
+            "com.apple.Terminal - New Terminal at Folder - newTerminalAtFolder" \
+            '{ "enabled_context_menu" = 1; "enabled_services_menu" = 1; "presentation_modes" = { ContextMenu = 1; ServicesMenu = 1; }; }'
+        sudo -u "$REAL_USER" defaults write pbs NSServicesStatus -dict-add \
+            "com.apple.Terminal - New Terminal Tab at Folder - newTerminalTabAtFolder" \
+            '{ "enabled_context_menu" = 1; "enabled_services_menu" = 1; "presentation_modes" = { ContextMenu = 1; ServicesMenu = 1; }; }'
+        /System/Library/CoreServices/pbs -flush 2>/dev/null || killall pbs 2>/dev/null || true
+        ok "Terminal services enabled — right-click folder → Services → New Terminal at Folder"
+    fi
 }
-
 
 apply_finder_quicklook_text() {
     local num="$1" desc="$2"
-    local before after="true"
-    before=$(dfw read com.apple.finder QLEnableTextSelection 2>/dev/null || echo "default (false)")
-    _run_item "$num" "finder_quicklook_text" "$desc" "$before" "$after" || return 0
-    [ "$DRY_RUN" = true ] && return 0
-    dfw write com.apple.finder QLEnableTextSelection -bool true
-    ok "QLEnableTextSelection = true"
+    local current default="false (text selection off)" optimized="true (text selection on)"
+    current=$(dfw read com.apple.finder QLEnableTextSelection 2>/dev/null || echo "(not set)")
+    _run_item "$num" "finder_quicklook_text" "$desc" "$current" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
+    if [ "$_rc" -eq 2 ]; then
+        dfw write com.apple.finder QLEnableTextSelection -bool false
+        ok "QLEnableTextSelection reset to macOS default (false)"
+    else
+        dfw write com.apple.finder QLEnableTextSelection -bool true
+        ok "QLEnableTextSelection = true"
+    fi
 }
 
 apply_finder_desktop_icons() {
     local num="$1" desc="$2"
-    local before after="all desktop icons ON"
-    before="hd=$(dfw read com.apple.finder ShowHardDrivesOnDesktop 2>/dev/null || echo '?')"
-    _run_item "$num" "finder_desktop_icons" "$desc" "$before" "$after" || return 0
-    [ "$DRY_RUN" = true ] && return 0
-    dfw write com.apple.finder ShowHardDrivesOnDesktop -bool true
-    dfw write com.apple.finder ShowExternalHardDrivesOnDesktop -bool true
-    dfw write com.apple.finder ShowRemovableMediaOnDesktop -bool true
-    dfw write com.apple.finder ShowMountedServersOnDesktop -bool true
-    ok "All desktop drive icons enabled"
+    local _hd _ext _rem _srv
+    _hd=$(dfw read com.apple.finder ShowHardDrivesOnDesktop 2>/dev/null || echo "(not set)")
+    _ext=$(dfw read com.apple.finder ShowExternalHardDrivesOnDesktop 2>/dev/null || echo "(not set)")
+    _rem=$(dfw read com.apple.finder ShowRemovableMediaOnDesktop 2>/dev/null || echo "(not set)")
+    _srv=$(dfw read com.apple.finder ShowMountedServersOnDesktop 2>/dev/null || echo "(not set)")
+    local current="hd=${_hd} ext=${_ext} rem=${_rem} srv=${_srv}" default="all false" optimized="all true"
+    _run_item "$num" "finder_desktop_icons" "$desc" "$current" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
+    local _val; [ "$_rc" -eq 2 ] && _val=false || _val=true
+    dfw write com.apple.finder ShowHardDrivesOnDesktop -bool "$_val"
+    dfw write com.apple.finder ShowExternalHardDrivesOnDesktop -bool "$_val"
+    dfw write com.apple.finder ShowRemovableMediaOnDesktop -bool "$_val"
+    dfw write com.apple.finder ShowMountedServersOnDesktop -bool "$_val"
+    ok "Desktop drive icons set to ${_val}"
 }
 
 apply_finder_save_panel() {
     local num="$1" desc="$2"
-    local before after="true (expanded)"
-    before=$(dfw read NSGlobalDomain NSNavPanelExpandedStateForSaveMode 2>/dev/null || echo "default (false)")
-    _run_item "$num" "finder_save_panel" "$desc" "$before" "$after" || return 0
-    [ "$DRY_RUN" = true ] && return 0
-    dfw write NSGlobalDomain NSNavPanelExpandedStateForSaveMode -bool true
-    dfw write NSGlobalDomain NSNavPanelExpandedStateForSaveMode2 -bool true
-    ok "Save panel expanded by default"
+    local current default="false (collapsed)" optimized="true (expanded)"
+    current=$(dfw read NSGlobalDomain NSNavPanelExpandedStateForSaveMode 2>/dev/null || echo "(not set)")
+    _run_item "$num" "finder_save_panel" "$desc" "$current" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
+    local _val; [ "$_rc" -eq 2 ] && _val=false || _val=true
+    dfw write NSGlobalDomain NSNavPanelExpandedStateForSaveMode -bool "$_val"
+    dfw write NSGlobalDomain NSNavPanelExpandedStateForSaveMode2 -bool "$_val"
+    ok "Save panel expanded = ${_val}"
 }
 
 apply_finder_print_panel() {
     local num="$1" desc="$2"
-    local before after="true (expanded)"
-    before=$(dfw read NSGlobalDomain PMPrintingExpandedStateForPrint 2>/dev/null || echo "default (false)")
-    _run_item "$num" "finder_print_panel" "$desc" "$before" "$after" || return 0
-    [ "$DRY_RUN" = true ] && return 0
-    dfw write NSGlobalDomain PMPrintingExpandedStateForPrint -bool true
-    dfw write NSGlobalDomain PMPrintingExpandedStateForPrint2 -bool true
-    ok "Print panel expanded by default"
+    local current default="false (collapsed)" optimized="true (expanded)"
+    current=$(dfw read NSGlobalDomain PMPrintingExpandedStateForPrint 2>/dev/null || echo "(not set)")
+    _run_item "$num" "finder_print_panel" "$desc" "$current" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
+    local _val; [ "$_rc" -eq 2 ] && _val=false || _val=true
+    dfw write NSGlobalDomain PMPrintingExpandedStateForPrint -bool "$_val"
+    dfw write NSGlobalDomain PMPrintingExpandedStateForPrint2 -bool "$_val"
+    ok "Print panel expanded = ${_val}"
 }
 
 apply_finder_save_to_disk() {
     local num="$1" desc="$2"
-    local before after="false (save to disk)"
-    before=$(dfw read NSGlobalDomain NSDocumentSaveNewDocumentsToCloud 2>/dev/null || echo "default (true)")
-    _run_item "$num" "finder_save_to_disk" "$desc" "$before" "$after" || return 0
-    [ "$DRY_RUN" = true ] && return 0
-    dfw write NSGlobalDomain NSDocumentSaveNewDocumentsToCloud -bool false
-    ok "NSDocumentSaveNewDocumentsToCloud = false"
+    local current default="true (save to iCloud)" optimized="false (save to disk)"
+    current=$(dfw read NSGlobalDomain NSDocumentSaveNewDocumentsToCloud 2>/dev/null || echo "(not set)")
+    _run_item "$num" "finder_save_to_disk" "$desc" "$current" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
+    if [ "$_rc" -eq 2 ]; then
+        dfw write NSGlobalDomain NSDocumentSaveNewDocumentsToCloud -bool true
+        ok "NSDocumentSaveNewDocumentsToCloud reset to macOS default (true)"
+    else
+        dfw write NSGlobalDomain NSDocumentSaveNewDocumentsToCloud -bool false
+        ok "NSDocumentSaveNewDocumentsToCloud = false"
+    fi
 }
 
 apply_finder_no_icloud() {
     local num="$1" desc="$2"
-    local before after="false (iCloud hidden)"
-    before=$(dfw read com.apple.finder ShowiCloudDriveInFinder 2>/dev/null || echo "default (true)")
-    _run_item "$num" "finder_no_icloud" "$desc" "$before" "$after" || return 0
-    [ "$DRY_RUN" = true ] && return 0
-    dfw write com.apple.finder ShowiCloudDriveInFinder -bool false
-    dfw write com.apple.finder ShowiCloudDesktopOnFinder -bool false
-    ok "iCloud Drive hidden from Finder"
+    local current default="true (iCloud shown)" optimized="false (iCloud hidden)"
+    current=$(dfw read com.apple.finder ShowiCloudDriveInFinder 2>/dev/null || echo "(not set)")
+    _run_item "$num" "finder_no_icloud" "$desc" "$current" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
+    if [ "$_rc" -eq 2 ]; then
+        dfw write com.apple.finder ShowiCloudDriveInFinder -bool true
+        dfw write com.apple.finder ShowiCloudDesktopOnFinder -bool true
+        ok "iCloud Drive shown in Finder (macOS default)"
+    else
+        dfw write com.apple.finder ShowiCloudDriveInFinder -bool false
+        dfw write com.apple.finder ShowiCloudDesktopOnFinder -bool false
+        ok "iCloud Drive hidden from Finder"
+    fi
 }
 
 apply_ds_store_network() {
     local num="$1" desc="$2"
-    local before after="true (no DS_Store on network vols)"
-    before=$(dfw read com.apple.desktopservices DSDontWriteNetworkStores 2>/dev/null || echo "default (false)")
-    _run_item "$num" "ds_store_network" "$desc" "$before" "$after" || return 0
-    [ "$DRY_RUN" = true ] && return 0
-    dfw write com.apple.desktopservices DSDontWriteNetworkStores -bool true
-    ok "DSDontWriteNetworkStores = true"
+    local current default="false (.DS_Store written)" optimized="true (.DS_Store suppressed)"
+    current=$(dfw read com.apple.desktopservices DSDontWriteNetworkStores 2>/dev/null || echo "(not set)")
+    _run_item "$num" "ds_store_network" "$desc" "$current" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
+    local _val; [ "$_rc" -eq 2 ] && _val=false || _val=true
+    dfw write com.apple.desktopservices DSDontWriteNetworkStores -bool "$_val"
+    ok "DSDontWriteNetworkStores = ${_val}"
 }
 
 apply_ds_store_usb() {
     local num="$1" desc="$2"
-    local before after="true (no DS_Store on USB)"
-    before=$(dfw read com.apple.desktopservices DSDontWriteUSBStores 2>/dev/null || echo "default (false)")
-    _run_item "$num" "ds_store_usb" "$desc" "$before" "$after" || return 0
-    [ "$DRY_RUN" = true ] && return 0
-    dfw write com.apple.desktopservices DSDontWriteUSBStores -bool true
-    ok "DSDontWriteUSBStores = true"
+    local current default="false (.DS_Store written)" optimized="true (.DS_Store suppressed)"
+    current=$(dfw read com.apple.desktopservices DSDontWriteUSBStores 2>/dev/null || echo "(not set)")
+    _run_item "$num" "ds_store_usb" "$desc" "$current" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
+    local _val; [ "$_rc" -eq 2 ] && _val=false || _val=true
+    dfw write com.apple.desktopservices DSDontWriteUSBStores -bool "$_val"
+    ok "DSDontWriteUSBStores = ${_val}"
 }
 
 apply_ds_store_remove() {
     local num="$1" desc="$2"
-    local before after="all .DS_Store files deleted (single-pass)"
-    # Estimate count from a quick non-recursive sample for display only
     local sample
     sample=$(find "$REAL_HOME" -maxdepth 4 -name ".DS_Store" 2>/dev/null | wc -l | tr -d ' ')
-    before="~${sample}+ .DS_Store files in $REAL_HOME"
-    _run_item "$num" "ds_store_remove" "$desc" "$before" "$after" || return 0
-    [ "$DRY_RUN" = true ] && return 0
-    # Single pass: collect into array then delete — no race between count and delete
+    local current="~${sample}+ .DS_Store files in $REAL_HOME" default="(files present)" optimized="all deleted"
+    _run_item "$num" "ds_store_remove" "$desc" "$current" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
+    # Both 'o' and 'd' delete — there is no meaningful "default" restore action
     local deleted=0
     while IFS= read -r -d "" f; do
         rm -f "$f" 2>/dev/null && deleted=$((deleted + 1)) || true
@@ -1258,46 +1618,59 @@ apply_ds_store_remove() {
 
 apply_green_button_maximize() {
     local num="$1" desc="$2"
-    local before after="manual (maximize)"
-    before=$(dfw read NSGlobalDomain AppleWindowTabbingMode 2>/dev/null || echo "default (automatic)")
-    _run_item "$num" "green_button_maximize" "$desc" "$before" "$after" || return 0
-    [ "$DRY_RUN" = true ] && return 0
-    dfw write NSGlobalDomain AppleWindowTabbingMode -string "manual"
-    ok "AppleWindowTabbingMode = manual"
+    local current default="automatic (green = fullscreen)" optimized="manual (green = maximize)"
+    current=$(dfw read NSGlobalDomain AppleWindowTabbingMode 2>/dev/null || echo "(not set)")
+    _run_item "$num" "green_button_maximize" "$desc" "$current" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
+    if [ "$_rc" -eq 2 ]; then
+        dfw write NSGlobalDomain AppleWindowTabbingMode -string "automatic"
+        ok "AppleWindowTabbingMode reset to macOS default (automatic)"
+    else
+        dfw write NSGlobalDomain AppleWindowTabbingMode -string "manual"
+        ok "AppleWindowTabbingMode = manual"
+    fi
 }
 
 apply_maximize_shortcut() {
     local num="$1" desc="$2"
-    local before="(check NSUserKeyEquivalents)" after="Ctrl+Cmd+M = Zoom"
-    _run_item "$num" "maximize_shortcut" "$desc" "$before" "$after" || return 0
-    [ "$DRY_RUN" = true ] && return 0
-    dfw write NSGlobalDomain NSUserKeyEquivalents -dict-add "Zoom" '@^m'
-    ok "Zoom shortcut = Ctrl+Cmd+M"
+    local current default="(none)" optimized="Ctrl+Cmd+M = Zoom"
+    current=$(dfw read NSGlobalDomain NSUserKeyEquivalents 2>/dev/null | grep Zoom | tr -d ' ' || echo "(not set)")
+    _run_item "$num" "maximize_shortcut" "$desc" "$current" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
+    if [ "$_rc" -eq 2 ]; then
+        dfw write NSGlobalDomain NSUserKeyEquivalents -dict-add "Zoom" ""
+        ok "Zoom shortcut removed (macOS default = none)"
+    else
+        dfw write NSGlobalDomain NSUserKeyEquivalents -dict-add "Zoom" '@^m'
+        ok "Zoom shortcut = Ctrl+Cmd+M"
+    fi
 }
 
 apply_widgets_disable() {
     local num="$1" desc="$2"
-    local before after="WidgetAllowList = [], widget instances = [] (all widgets removed)"
     local instance_count
-    instance_count=$(dfw read com.apple.notificationcenterui widgets 2>/dev/null \
-        | grep -c 'bplist' || echo "0")
-    before="${instance_count} widget instance(s)"
-    _run_item "$num" "widgets_disable" "$desc" "$before" "$after" || return 0
-    [ "$DRY_RUN" = true ] && return 0
-    # Clear the WidgetAllowList (allowlist of permitted widget bundles)
-    dfw write com.apple.notificationcenterui WidgetAllowList -array
-    ok "WidgetAllowList cleared"
-    # Clear all active widget instances and desktop placement storage
-    dfw write com.apple.notificationcenterui widgets \
-        '{ instances = (); DesktopWidgetPlacementStorage = (); vers = 1; }'
-    ok "Widget instances cleared"
+    instance_count=$(dfw read com.apple.notificationcenterui widgets 2>/dev/null | grep -c 'bplist' || echo "0")
+    local current="${instance_count} active widget instance(s)" default="(system default widgets)" optimized="all widgets disabled"
+    _run_item "$num" "widgets_disable" "$desc" "$current" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
+    if [ "$_rc" -eq 2 ]; then
+        dfw delete com.apple.notificationcenterui WidgetAllowList 2>/dev/null || true
+        dfw delete com.apple.notificationcenterui widgets 2>/dev/null || true
+        ok "Widget settings reset to macOS default"
+    else
+        dfw write com.apple.notificationcenterui WidgetAllowList -array
+        dfw write com.apple.notificationcenterui widgets \
+            '{ instances = (); DesktopWidgetPlacementStorage = (); vers = 1; }'
+        ok "All widgets disabled"
+    fi
 }
 
 apply_screenshots() {
     local num="$1" desc="$2"
-    local before="(check AppleSymbolicHotKeys)" after="keys 28/29/30/31/184 enabled"
-    _run_item "$num" "screenshots" "$desc" "$before" "$after" || return 0
-    [ "$DRY_RUN" = true ] && return 0
+    local current default="keys 28/29/30/31/184 enabled" optimized="keys 28/29/30/31/184 enabled"
+    current=$(dfw read com.apple.symbolichotkeys AppleSymbolicHotKeys 2>/dev/null | grep -A2 '"28"' | head -3 || echo "(not set)")
+    _run_item "$num" "screenshots" "$desc" "$current" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
     for spec in \
         "28|51|20|1179648" \
         "29|51|20|1441792" \
@@ -1318,9 +1691,10 @@ apply_screenshots() {
 
 apply_spotlight_shortcut() {
     local num="$1" desc="$2"
-    local before="(check AppleSymbolicHotKeys key 60)" after="key 60 enabled (Cmd+Space)"
-    _run_item "$num" "spotlight_shortcut" "$desc" "$before" "$after" || return 0
-    [ "$DRY_RUN" = true ] && return 0
+    local current default="key 60 enabled (Cmd+Space)" optimized="key 60 enabled (Cmd+Space)"
+    current=$(dfw read com.apple.symbolichotkeys AppleSymbolicHotKeys 2>/dev/null | grep -A2 '"60"' | head -3 || echo "(not set)")
+    _run_item "$num" "spotlight_shortcut" "$desc" "$current" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
     dfw write com.apple.symbolichotkeys AppleSymbolicHotKeys -dict-add 60 \
         "{ enabled = 1; value = { parameters = (32, 49, 1048576); type = standard; }; }"
     ok "Cmd+Space spotlight shortcut enabled"
@@ -1328,9 +1702,11 @@ apply_spotlight_shortcut() {
 
 apply_controlcenter_cleanup() {
     local num="$1" desc="$2"
-    local before="(orphaned CC items)" after="Siri/AirDrop/FocusModes/ScreenMirroring/TimeMachine/Weather removed"
-    _run_item "$num" "controlcenter_cleanup" "$desc" "$before" "$after" || return 0
-    [ "$DRY_RUN" = true ] && return 0
+    local current default="(varies)" optimized="Siri/AirDrop/FocusModes/ScreenMirroring/TimeMachine/Weather removed"
+    current=$(dfw read com.apple.controlcenter 2>/dev/null | grep -c "NSStatusItem" || echo "(not set)")
+    current="${current} CC status items"
+    _run_item "$num" "controlcenter_cleanup" "$desc" "$current" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
     for module in Siri AirDrop FocusModes ScreenMirroring TimeMachine Weather; do
         dfw delete com.apple.controlcenter "NSStatusItem VisibleCC $module" 2>/dev/null || true
     done
@@ -1340,15 +1716,15 @@ apply_controlcenter_cleanup() {
 apply_wallpaper_black() {
     local num="$1" desc="$2"
     local BLACK="/System/Library/Desktop Pictures/Solid Colors/Black.png"
-    local before="(current wallpaper)" after="solid black"
-    _run_item "$num" "wallpaper_black" "$desc" "$before" "$after" || return 0
-    [ "$DRY_RUN" = true ] && return 0
+    local current default="(macOS default wallpaper)" optimized="solid black"
+    current=$(sudo -u "$REAL_USER" osascript -e 'tell application "System Events" to get picture of desktop 1' 2>/dev/null || echo "(unknown)")
+    _run_item "$num" "wallpaper_black" "$desc" "$current" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
+    if [ "$_rc" -eq 2 ]; then
+        warn "Cannot auto-restore wallpaper — set manually: System Settings → Wallpaper"
+        return 0
+    fi
     if [ -f "$BLACK" ]; then
-        # System Events is the correct path on macOS Sonoma+ (26+).
-        # The old "tell application Finder to set desktop picture" was removed.
-        # System Events signals WallpaperAgent + cfprefsd correctly.
-        # Inner AppleScript strings use escaped double-quotes (\") inside the
-        # shell double-quote wrapper; "$ASCRIPT" preserves spaces in the path.
         local ASCRIPT
         ASCRIPT="tell application \"System Events\" to tell every desktop to set picture to \"$BLACK\""
         local _wp_err
@@ -1361,16 +1737,35 @@ apply_wallpaper_black() {
         fi
     else
         warn "Black wallpaper image not found: $BLACK"
-        warn "Available solid colors: ls \"/System/Library/Desktop Pictures/Solid Colors/\""
+    fi
+}
+
+apply_crash_reporter() {
+    local num="$1" desc="$2"
+    local current default="prompt (blocking dialog on every crash)" optimized="none (silent — reports still written to ~/Library/Logs/DiagnosticReports)"
+    current=$(dfw read com.apple.CrashReporter DialogType 2>/dev/null || echo "(not set — defaults to prompt)")
+    _run_item "$num" "crash_reporter" "$desc" "$current" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
+    if [ "$_rc" -eq 2 ]; then
+        dfw delete com.apple.CrashReporter DialogType 2>/dev/null || true
+        ok "CrashReporter reset to macOS default (blocking prompt)"
+    else
+        dfw write com.apple.CrashReporter DialogType -string "none"
+        ok "CrashReporter dialog suppressed (reports still written to DiagnosticReports)"
     fi
 }
 
 apply_timezone() {
     local num="$1" desc="$2"
-    local before after="$MACHETE_TIMEZONE"
-    before=$(sudo systemsetup -gettimezone 2>/dev/null | awk '{print $NF}' || echo "unknown")
-    _run_item "$num" "timezone" "$desc" "$before" "$after" || return 0
-    [ "$DRY_RUN" = true ] && return 0
+    local current default="(setup assistant selection)" optimized="$MACHETE_TIMEZONE"
+    current=$(sudo systemsetup -gettimezone 2>/dev/null | awk '{print $NF}' || echo "unknown")
+    _run_item "$num" "timezone" "$desc" "$current" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
+    # For 'd' we can't know the original default — warn and skip
+    if [ "$_rc" -eq 2 ]; then
+        warn "Cannot restore timezone default automatically — set in System Settings → General → Date & Time"
+        return 0
+    fi
     local _tz_err
     _tz_err=$(sudo systemsetup -settimezone "$MACHETE_TIMEZONE" 2>&1)
     if [ $? -eq 0 ]; then
@@ -1382,57 +1777,83 @@ apply_timezone() {
 
 apply_clock_24hr() {
     local num="$1" desc="$2"
-    local before after="true"
-    before=$(dfw read NSGlobalDomain AppleICUForce24HourTime 2>/dev/null || echo "default (false)")
-    _run_item "$num" "clock_24hr" "$desc" "$before" "$after" || return 0
-    [ "$DRY_RUN" = true ] && return 0
-    dfw write NSGlobalDomain AppleICUForce24HourTime -bool true
-    ok "AppleICUForce24HourTime = true"
+    local current default="false (12-hour / locale-dependent)" optimized="true (24-hour)"
+    current=$(dfw read NSGlobalDomain AppleICUForce24HourTime 2>/dev/null || echo "(not set)")
+    _run_item "$num" "clock_24hr" "$desc" "$current" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
+    if [ "$_rc" -eq 2 ]; then
+        dfw delete NSGlobalDomain AppleICUForce24HourTime 2>/dev/null || true
+        ok "AppleICUForce24HourTime reset to macOS default (locale-dependent)"
+    else
+        dfw write NSGlobalDomain AppleICUForce24HourTime -bool true
+        ok "AppleICUForce24HourTime = true"
+    fi
 }
 
 apply_clock_iso_date() {
     local num="$1" desc="$2"
-    local before="(current date format)" after="yyyy-MM-dd (all ICU levels)"
-    _run_item "$num" "clock_iso_date" "$desc" "$before" "$after" || return 0
-    [ "$DRY_RUN" = true ] && return 0
-    dfw write NSGlobalDomain AppleICUDateFormatStrings -dict \
-        1 "yyyy-MM-dd" 2 "yyyy-MM-dd" 3 "yyyy-MM-dd" 4 "yyyy-MM-dd"
-    dfw write NSGlobalDomain AppleICUTimeFormatStrings -dict \
-        1 "HH:mm:ss" 2 "HH:mm:ss" 3 "HH:mm:ss" 4 "HH:mm:ss"
-    ok "Date = yyyy-MM-dd, Time = HH:mm:ss (all ICU levels)"
+    local current default="(locale-dependent, e.g. d MMM y)" optimized="yyyy-MM-dd (ISO 8601)"
+    current=$(dfw read NSGlobalDomain AppleICUDateFormatStrings 2>/dev/null | grep '"1"' | head -1 || echo "(not set)")
+    _run_item "$num" "clock_iso_date" "$desc" "$current" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
+    if [ "$_rc" -eq 2 ]; then
+        dfw delete NSGlobalDomain AppleICUDateFormatStrings 2>/dev/null || true
+        dfw delete NSGlobalDomain AppleICUTimeFormatStrings 2>/dev/null || true
+        ok "Date/time format reset to macOS locale default"
+    else
+        dfw write NSGlobalDomain AppleICUDateFormatStrings -dict \
+            1 "yyyy-MM-dd" 2 "yyyy-MM-dd" 3 "yyyy-MM-dd" 4 "yyyy-MM-dd"
+        dfw write NSGlobalDomain AppleICUTimeFormatStrings -dict \
+            1 "HH:mm:ss" 2 "HH:mm:ss" 3 "HH:mm:ss" 4 "HH:mm:ss"
+        ok "Date = yyyy-MM-dd, Time = HH:mm:ss (all ICU levels)"
+    fi
 }
 
 apply_clock_seconds() {
     local num="$1" desc="$2"
-    local before after="true"
-    before=$(dfw read com.apple.menuextra.clock ShowSeconds 2>/dev/null || echo "default (false)")
-    _run_item "$num" "clock_seconds" "$desc" "$before" "$after" || return 0
-    [ "$DRY_RUN" = true ] && return 0
-    dfw write com.apple.menuextra.clock ShowSeconds -bool true
-    dfw write com.apple.menuextra.clock Show24Hour -bool true
-    ok "Menu bar clock shows seconds"
+    local current default="false (seconds hidden)" optimized="true (seconds shown)"
+    current=$(dfw read com.apple.menuextra.clock ShowSeconds 2>/dev/null || echo "(not set)")
+    _run_item "$num" "clock_seconds" "$desc" "$current" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
+    if [ "$_rc" -eq 2 ]; then
+        dfw write com.apple.menuextra.clock ShowSeconds -bool false
+        ok "ShowSeconds reset to macOS default (false)"
+    else
+        dfw write com.apple.menuextra.clock ShowSeconds -bool true
+        dfw write com.apple.menuextra.clock Show24Hour -bool true
+        ok "Menu bar clock shows seconds"
+    fi
 }
 
 apply_clock_menubar_format() {
     local num="$1" desc="$2"
-    local before after="yyyy-MM-dd HH:mm:ss"
-    before=$(dfw read com.apple.menuextra.clock DateFormat 2>/dev/null || echo "default")
-    _run_item "$num" "clock_menubar_format" "$desc" "$before" "$after" || return 0
-    [ "$DRY_RUN" = true ] && return 0
-    dfw write com.apple.menuextra.clock DateFormat -string "yyyy-MM-dd HH:mm:ss"
-    dfw write com.apple.menuextra.clock ShowAMPM -bool false
-    dfw write com.apple.menuextra.clock ShowDate -bool false
-     dfw write com.apple.menuextra.clock ShowDayOfWeek -bool false
-     ok "Menu bar clock = yyyy-MM-dd HH:mm:ss"
+    local current default="(locale-dependent, e.g. h:mm a)" optimized="yyyy-MM-dd HH:mm:ss"
+    current=$(dfw read com.apple.menuextra.clock DateFormat 2>/dev/null || echo "(not set)")
+    _run_item "$num" "clock_menubar_format" "$desc" "$current" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
+    if [ "$_rc" -eq 2 ]; then
+        dfw delete com.apple.menuextra.clock DateFormat 2>/dev/null || true
+        ok "Menu bar clock format reset to macOS default"
+    else
+        dfw write com.apple.menuextra.clock DateFormat -string "yyyy-MM-dd HH:mm:ss"
+        dfw write com.apple.menuextra.clock ShowAMPM -bool false
+        dfw write com.apple.menuextra.clock ShowDate -bool false
+        dfw write com.apple.menuextra.clock ShowDayOfWeek -bool false
+        ok "Menu bar clock = yyyy-MM-dd HH:mm:ss"
+    fi
 }
 
 apply_computer_name() {
     local num="$1" desc="$2"
     local NAME="$MACHETE_COMPUTER_NAME"
-    local before after="ComputerName=$NAME  LocalHostName=$NAME  HostName=$NAME"
-    before="ComputerName=$(scutil --get ComputerName 2>/dev/null || echo '?')  LocalHostName=$(scutil --get LocalHostName 2>/dev/null || echo '?')"
-    _run_item "$num" "computer_name" "$desc" "$before" "$after" || return 0
-    [ "$DRY_RUN" = true ] && return 0
+    local current default="(setup assistant name)" optimized="ComputerName=$NAME LocalHostName=$NAME HostName=$NAME"
+    current="ComputerName=$(scutil --get ComputerName 2>/dev/null || echo '?') LocalHostName=$(scutil --get LocalHostName 2>/dev/null || echo '?')"
+    _run_item "$num" "computer_name" "$desc" "$current" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
+    if [ "$_rc" -eq 2 ]; then
+        warn "Cannot restore original computer name automatically — set in System Settings → General → Sharing"
+        return 0
+    fi
     sudo scutil --set ComputerName  "$NAME"
     sudo scutil --set LocalHostName "$NAME"
     sudo scutil --set HostName      "$NAME"
@@ -1445,164 +1866,280 @@ apply_computer_name() {
 
 apply_power_mode_auto() {
     local num="$1" desc="$2"
-    local before after="1 (Auto)"
-    before=$(pmset -g | awk '/powermode/{print $2}' || echo "unknown")
-    _run_item "$num" "power_mode_auto" "$desc" "$before" "$after" || return 0
-    [ "$DRY_RUN" = true ] && return 0
+    local current default="1 (Auto)" optimized="1 (Auto)"
+    current=$(pmset -g | awk '/powermode/{print $2}' || echo "unknown")
+    _run_item "$num" "power_mode_auto" "$desc" "$current" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
     sudo pmset -c powermode 1
     ok "AC powermode = 1 (Auto)"
 }
 
 apply_power_display_sleep_ac() {
     local num="$1" desc="$2"
-    local before after="5 min"
-    before=$(pmset -g | awk '/displaysleep/{print $2}' | head -1 || echo "?")
-    _run_item "$num" "power_display_sleep_ac" "$desc" "$before min" "$after" || return 0
-    [ "$DRY_RUN" = true ] && return 0
-    sudo pmset -c displaysleep 5
-    ok "AC displaysleep = 5"
+    local current default="10 min" optimized="5 min"
+    current=$(pmset -g custom 2>/dev/null | awk '/AC Power/,0' | awk '/displaysleep/{print $2; exit}' || echo "?")
+    _run_item "$num" "power_display_sleep_ac" "$desc" "${current} min" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
+    [ "$_rc" -eq 2 ] && sudo pmset -c displaysleep 10 || sudo pmset -c displaysleep 5
+    ok "AC displaysleep = $( [ "$_rc" -eq 2 ] && echo 10 || echo 5 )"
 }
 
 apply_power_system_sleep_ac() {
     local num="$1" desc="$2"
-    local before after="10 min"
-    before=$(pmset -g | awk '/^[ ]+sleep /{print $2}' | head -1 || echo "?")
-    _run_item "$num" "power_system_sleep_ac" "$desc" "$before min" "$after" || return 0
-    [ "$DRY_RUN" = true ] && return 0
+    local current default="10 min" optimized="10 min"
+    current=$(pmset -g custom 2>/dev/null | awk '/AC Power/,0' | awk '/^[ ]+sleep /{print $2; exit}' || echo "?")
+    _run_item "$num" "power_system_sleep_ac" "$desc" "${current} min" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
     sudo pmset -c sleep 10
     ok "AC sleep = 10"
 }
 
 apply_power_clamshell() {
     local num="$1" desc="$2"
-    local before after="acwake=1 lidwake=1 ttyskeepawake=1"
-    before="acwake=$(pmset -g | awk '/acwake/{print $2}' || echo '?')"
-    _run_item "$num" "power_clamshell" "$desc" "$before" "$after" || return 0
-    [ "$DRY_RUN" = true ] && return 0
-    sudo pmset -c acwake 1
-    sudo pmset -c lidwake 1
-    sudo pmset -c ttyskeepawake 1
-    ok "Clamshell mode enabled (AC)"
+    local _aw _lw _tty
+    _aw=$(pmset -g custom 2>/dev/null | awk '/AC Power/,0' | awk '/acwake/{print $2; exit}' || echo "?")
+    _lw=$(pmset -g custom 2>/dev/null | awk '/AC Power/,0' | awk '/lidwake/{print $2; exit}' || echo "?")
+    _tty=$(pmset -g custom 2>/dev/null | awk '/AC Power/,0' | awk '/ttyskeepawake/{print $2; exit}' || echo "?")
+    local current="acwake=${_aw} lidwake=${_lw} ttyskeepawake=${_tty}" default="acwake=0 lidwake=1 ttyskeepawake=1" optimized="acwake=1 lidwake=1 ttyskeepawake=1"
+    _run_item "$num" "power_clamshell" "$desc" "$current" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
+    if [ "$_rc" -eq 2 ]; then
+        sudo pmset -c acwake 0; sudo pmset -c lidwake 1; sudo pmset -c ttyskeepawake 1
+        ok "Clamshell reset to macOS default (acwake=0)"
+    else
+        sudo pmset -c acwake 1; sudo pmset -c lidwake 1; sudo pmset -c ttyskeepawake 1
+        ok "Clamshell mode enabled (AC)"
+    fi
 }
 
 apply_power_nap_ac() {
     local num="$1" desc="$2"
-    local before after="0 (off)"
-    before=$(pmset -g | awk '/powernap/{print $2}' | head -1 || echo "?")
-    _run_item "$num" "power_nap_ac" "$desc" "$before" "$after" || return 0
-    [ "$DRY_RUN" = true ] && return 0
-    sudo pmset -c powernap 0
-    ok "AC powernap = 0"
+    local current default="1 (on)" optimized="0 (off)"
+    current=$(pmset -g custom 2>/dev/null | awk '/AC Power/,0' | awk '/powernap/{print $2; exit}' || echo "?")
+    _run_item "$num" "power_nap_ac" "$desc" "$current" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
+    [ "$_rc" -eq 2 ] && sudo pmset -c powernap 1 || sudo pmset -c powernap 0
+    ok "AC powernap = $( [ "$_rc" -eq 2 ] && echo 1 || echo 0 )"
 }
 
 apply_power_disk_sleep_ac() {
     local num="$1" desc="$2"
-    local before after="10 min"
-    before=$(pmset -g | awk '/disksleep/{print $2}' | head -1 || echo "?")
-    _run_item "$num" "power_disk_sleep_ac" "$desc" "$before min" "$after" || return 0
-    [ "$DRY_RUN" = true ] && return 0
+    local current default="10 min" optimized="10 min"
+    current=$(pmset -g custom 2>/dev/null | awk '/AC Power/,0' | awk '/disksleep/{print $2; exit}' || echo "?")
+    _run_item "$num" "power_disk_sleep_ac" "$desc" "${current} min" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
     sudo pmset -c disksleep 10
     ok "AC disksleep = 10"
 }
 
 apply_power_display_sleep_bat() {
     local num="$1" desc="$2"
-    local before after="2 min"
-    before=$(pmset -g custom 2>/dev/null | awk '/Battery Power/,/AC Power/' | awk '/displaysleep/{print $2; exit}' || echo "?")
-    _run_item "$num" "power_display_sleep_bat" "$desc" "$before min" "$after" || return 0
-    [ "$DRY_RUN" = true ] && return 0
+    local current default="2 min" optimized="2 min"
+    current=$(pmset -g custom 2>/dev/null | awk '/Battery Power/,/AC Power/' | awk '/displaysleep/{print $2; exit}' || echo "?")
+    _run_item "$num" "power_display_sleep_bat" "$desc" "${current} min" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
     sudo pmset -b displaysleep 2
     ok "Battery displaysleep = 2"
 }
 
 apply_power_system_sleep_bat() {
     local num="$1" desc="$2"
-    local before after="5 min"
-    before=$(pmset -g custom 2>/dev/null | awk '/Battery Power/,/AC Power/' | awk '/^[ ]+sleep /{print $2; exit}' || echo "?")
-    _run_item "$num" "power_system_sleep_bat" "$desc" "$before min" "$after" || return 0
-    [ "$DRY_RUN" = true ] && return 0
+    local current default="5 min" optimized="5 min"
+    current=$(pmset -g custom 2>/dev/null | awk '/Battery Power/,/AC Power/' | awk '/^[ ]+sleep /{print $2; exit}' || echo "?")
+    _run_item "$num" "power_system_sleep_bat" "$desc" "${current} min" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
     sudo pmset -b sleep 5
     ok "Battery sleep = 5"
 }
 
 apply_power_standby_bat() {
     local num="$1" desc="$2"
-    local before after="0 (off — no background wake cycle)"
-    before=$(pmset -g custom 2>/dev/null | awk '/Battery Power/,/AC Power/' | awk '/standby/{print $2; exit}' || echo "?")
-    _run_item "$num" "power_standby_bat" "$desc" "$before" "$after" || return 0
-    [ "$DRY_RUN" = true ] && return 0
-    sudo pmset -b standby 0
-    ok "Battery standby = 0"
+    local current default="1 (on)" optimized="0 (off)"
+    current=$(pmset -g custom 2>/dev/null | awk '/Battery Power/,/AC Power/' | awk '/standby/{print $2; exit}' || echo "?")
+    _run_item "$num" "power_standby_bat" "$desc" "$current" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
+    [ "$_rc" -eq 2 ] && sudo pmset -b standby 1 || sudo pmset -b standby 0
+    ok "Battery standby = $( [ "$_rc" -eq 2 ] && echo 1 || echo 0 )"
 }
 
 apply_power_nap_bat() {
     local num="$1" desc="$2"
-    local before after="0 (off)"
-    before=$(pmset -g custom 2>/dev/null | awk '/Battery Power/,/AC Power/' | awk '/powernap/{print $2; exit}' || echo "?")
-    _run_item "$num" "power_nap_bat" "$desc" "$before" "$after" || return 0
-    [ "$DRY_RUN" = true ] && return 0
+    local current default="0 (off)" optimized="0 (off)"
+    current=$(pmset -g custom 2>/dev/null | awk '/Battery Power/,/AC Power/' | awk '/powernap/{print $2; exit}' || echo "?")
+    _run_item "$num" "power_nap_bat" "$desc" "$current" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
     sudo pmset -b powernap 0
     ok "Battery powernap = 0"
+}
+
+apply_hibernate_mode_ac() {
+    local num="$1" desc="$2"
+    local current default="3 (safe sleep — RAM + disk image)" optimized="0 (RAM-only sleep, no disk write)"
+    current=$(pmset -g custom 2>/dev/null | awk '/AC Power/,0' | awk '/hibernatemode/{print $2; exit}' || echo "?")
+    _run_item "$num" "hibernate_mode_ac" "$desc" "hibernatemode=${current}" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
+    if [ "$_rc" -eq 2 ]; then
+        sudo pmset -c hibernatemode 3
+        ok "AC hibernatemode reset to macOS default (3 — safe sleep)"
+    else
+        sudo pmset -c hibernatemode 0
+        ok "AC hibernatemode = 0 (RAM-only sleep; no sleep image written to SSD)"
+    fi
+}
+
+apply_wol_ac() {
+    local num="$1" desc="$2"
+    local current default="1 (Wake on LAN enabled)" optimized="0 (Wake on LAN disabled)"
+    current=$(pmset -g custom 2>/dev/null | awk '/AC Power/,0' | awk '/^[ ]*womp/{print $2; exit}' || echo "?")
+    _run_item "$num" "wol_ac" "$desc" "womp=${current}" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
+    if [ "$_rc" -eq 2 ]; then
+        sudo pmset -c womp 1
+        ok "Wake on LAN reset to macOS default (enabled)"
+    else
+        sudo pmset -c womp 0
+        ok "Wake on LAN disabled (womp=0)"
+    fi
 }
 
 # ── NETWORK ────────────────────────────────────────────────────────────────
 
 apply_tcp_socket_buffer() {
     local num="$1" desc="$2"
-    local before after="16777216 (16 MB)"
-    before=$(sysctl -n kern.ipc.maxsockbuf 2>/dev/null || echo "?")
-    _run_item "$num" "tcp_socket_buffer" "$desc" "$before" "$after" || return 0
-    [ "$DRY_RUN" = true ] && return 0
-    sudo sysctl -w kern.ipc.maxsockbuf=16777216
-    ok "kern.ipc.maxsockbuf = 16777216"
+    local current default="4194304 (4 MB)" optimized="16777216 (16 MB)"
+    current=$(sysctl -n kern.ipc.maxsockbuf 2>/dev/null || echo "?")
+    _run_item "$num" "tcp_socket_buffer" "$desc" "$current" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
+    [ "$_rc" -eq 2 ] && sudo sysctl -w kern.ipc.maxsockbuf=4194304 \
+                     || sudo sysctl -w kern.ipc.maxsockbuf=16777216
+    ok "kern.ipc.maxsockbuf = $( [ "$_rc" -eq 2 ] && echo 4194304 || echo 16777216 )"
 }
 
 apply_tcp_send_recv_space() {
     local num="$1" desc="$2"
-    local before after="1048576 (1 MB each)"
-    before="send=$(sysctl -n net.inet.tcp.sendspace 2>/dev/null || echo '?') recv=$(sysctl -n net.inet.tcp.recvspace 2>/dev/null || echo '?')"
-    _run_item "$num" "tcp_send_recv_space" "$desc" "$before" "$after" || return 0
-    [ "$DRY_RUN" = true ] && return 0
-    sudo sysctl -w net.inet.tcp.sendspace=1048576
-    sudo sysctl -w net.inet.tcp.recvspace=1048576
-    ok "TCP send/recv space = 1048576"
+    local _send _recv
+    _send=$(sysctl -n net.inet.tcp.sendspace 2>/dev/null || echo "?")
+    _recv=$(sysctl -n net.inet.tcp.recvspace 2>/dev/null || echo "?")
+    local current="send=${_send} recv=${_recv}" default="send=131072 recv=131072 (128 KB)" optimized="send=1048576 recv=1048576 (1 MB)"
+    _run_item "$num" "tcp_send_recv_space" "$desc" "$current" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
+    if [ "$_rc" -eq 2 ]; then
+        sudo sysctl -w net.inet.tcp.sendspace=131072
+        sudo sysctl -w net.inet.tcp.recvspace=131072
+    else
+        sudo sysctl -w net.inet.tcp.sendspace=1048576
+        sudo sysctl -w net.inet.tcp.recvspace=1048576
+    fi
+    ok "TCP send/recv space set"
 }
 
 apply_tcp_somaxconn() {
     local num="$1" desc="$2"
-    local before after="2048"
-    before=$(sysctl -n kern.ipc.somaxconn 2>/dev/null || echo "?")
-    _run_item "$num" "tcp_somaxconn" "$desc" "$before" "$after" || return 0
-    [ "$DRY_RUN" = true ] && return 0
-    sudo sysctl -w kern.ipc.somaxconn=2048
-    ok "kern.ipc.somaxconn = 2048"
+    local current default="128" optimized="2048"
+    current=$(sysctl -n kern.ipc.somaxconn 2>/dev/null || echo "?")
+    _run_item "$num" "tcp_somaxconn" "$desc" "$current" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
+    [ "$_rc" -eq 2 ] && sudo sysctl -w kern.ipc.somaxconn=128 \
+                     || sudo sysctl -w kern.ipc.somaxconn=2048
+    ok "kern.ipc.somaxconn = $( [ "$_rc" -eq 2 ] && echo 128 || echo 2048 )"
 }
 
 apply_sysctl_perf() {
     local num="$1" desc="$2"
-    # Only kern.maxvnodes is safe to raise on Apple Silicon macOS 26.4.
-    # kern.maxproc/maxfiles/maxfilesperproc are already set higher by the OS
-    # (16000/491520/245760) — the GitHub-sourced values (2048/200000/100000)
-    # would have LOWERED them, which is wrong. kern.ipc.nmbclusters is read-only.
-    local before after="kern.maxvnodes=750000"
-    before="maxvnodes=$(sysctl -n kern.maxvnodes 2>/dev/null || echo '?')"
-    _run_item "$num" "sysctl_perf" "$desc" "$before" "$after" || return 0
-    [ "$DRY_RUN" = true ] && return 0
-    sudo sysctl -w kern.maxvnodes=750000
-    ok "kern.maxvnodes = 750000"
+    local current default="~263168 (OS default)" optimized="750000"
+    current=$(sysctl -n kern.maxvnodes 2>/dev/null || echo "?")
+    _run_item "$num" "sysctl_perf" "$desc" "maxvnodes=${current}" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
+    if [ "$_rc" -eq 2 ]; then
+        sudo sysctl -w kern.maxvnodes=263168
+        ok "kern.maxvnodes reset to macOS default (263168)"
+    else
+        sudo sysctl -w kern.maxvnodes=750000
+        ok "kern.maxvnodes = 750000"
+    fi
+}
+
+apply_launchd_maxfiles() {
+    local num="$1" desc="$2"
+    local PLIST="/Library/LaunchDaemons/limit.maxfiles.plist"
+    local _soft _hard
+    _soft=$(launchctl limit maxfiles 2>/dev/null | awk '{print $2}')
+    _hard=$(launchctl limit maxfiles 2>/dev/null | awk '{print $3}')
+    local current="soft=${_soft} hard=${_hard}" default="soft=256 hard=unlimited" optimized="soft=65536 hard=unlimited"
+    _run_item "$num" "launchd_maxfiles" "$desc" "$current" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
+    if [ "$_rc" -eq 2 ]; then
+        sudo launchctl bootout system/limit.maxfiles 2>/dev/null || true
+        sudo rm -f "$PLIST"
+        ok "launchd maxfiles LaunchDaemon removed — soft limit reverts to 256 on next boot"
+    else
+        sudo tee "$PLIST" > /dev/null << 'MAXEOF'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>limit.maxfiles</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/launchctl</string>
+        <string>limit</string>
+        <string>maxfiles</string>
+        <string>65536</string>
+        <string>unlimited</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>ServiceIPC</key>
+    <false/>
+</dict>
+</plist>
+MAXEOF
+        sudo launchctl bootout  system/limit.maxfiles 2>/dev/null || true
+        sudo launchctl bootstrap system "$PLIST"
+        # Apply immediately to the running system without requiring a reboot
+        sudo launchctl limit maxfiles 65536 unlimited 2>/dev/null || true
+        ok "maxfiles soft limit → 65536 (active now + persists via LaunchDaemon at boot)"
+    fi
+}
+
+apply_iogpu_wired_limit() {
+    local num="$1" desc="$2"
+    local _mem_mb _optimized_mb
+    _mem_mb=$(( $(sysctl -n hw.memsize) / 1024 / 1024 ))
+    _optimized_mb=$(( _mem_mb - 6144 ))
+    local current default="0 (fully dynamic, no cap)" optimized="${_optimized_mb} MB (RAM − 6 GB)"
+    current=$(sysctl -n iogpu.wired_limit_mb 2>/dev/null || echo "?")
+    _run_item "$num" "iogpu_wired_limit" "$desc" "$current" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
+    if [ "$_rc" -eq 2 ]; then
+        sudo sysctl -w iogpu.wired_limit_mb=0
+        ok "iogpu.wired_limit_mb = 0 (fully dynamic)"
+    else
+        sudo sysctl -w iogpu.wired_limit_mb="${_optimized_mb}"
+        ok "iogpu.wired_limit_mb = ${_optimized_mb} MB (${_mem_mb} MB RAM − 6144 MB)"
+    fi
 }
 
 apply_sysctl_persist() {
     local num="$1" desc="$2"
-    local before after="/etc/sysctl.conf written"
-    [ -f /etc/sysctl.conf ] && before="exists ($(wc -l < /etc/sysctl.conf | tr -d ' ') lines)" || before="does not exist"
-    _run_item "$num" "sysctl_persist" "$desc" "$before" "$after" || return 0
-    [ "$DRY_RUN" = true ] && return 0
-    sudo tee /etc/sysctl.conf > /dev/null << 'SCTLEOF'
+    local current default="(file absent)" optimized="/etc/sysctl.conf written"
+    [ -f /etc/sysctl.conf ] && current="exists ($(wc -l < /etc/sysctl.conf | tr -d ' ') lines)" || current="does not exist"
+    _run_item "$num" "sysctl_persist" "$desc" "$current" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
+    if [ "$_rc" -eq 2 ]; then
+        sudo rm -f /etc/sysctl.conf
+        ok "/etc/sysctl.conf removed (macOS default: absent)"
+    else
+        # iogpu.wired_limit_mb is RAM-dependent so must be computed at write-time
+        local _mem_mb _iogpu_limit
+        _mem_mb=$(( $(sysctl -n hw.memsize) / 1024 / 1024 ))
+        _iogpu_limit=$(( _mem_mb - 6144 ))
+        sudo tee /etc/sysctl.conf > /dev/null << SCTLEOF
 # sysctl.conf — managed by optimizations.sh
 # Rollback: delete this file and reboot
 # Note: kern.maxproc/maxfiles/maxfilesperproc intentionally omitted —
-#       macOS 26.4 ships with higher values already (16000/491520/245760).
+#       macOS ships with higher values already (16000/491520/245760).
 #       kern.ipc.nmbclusters is read-only on this platform.
 #       net.inet.tcp.delayed_ack removed — net loss on Wi-Fi-only machine.
 
@@ -1613,31 +2150,38 @@ kern.ipc.somaxconn=2048
 net.inet.tcp.mssdflt=1440
 net.inet.tcp.blackhole=2
 kern.maxvnodes=750000
+iogpu.wired_limit_mb=${_iogpu_limit}
 SCTLEOF
-    ok "/etc/sysctl.conf written"
+        ok "/etc/sysctl.conf written (iogpu.wired_limit_mb=${_iogpu_limit})"
+    fi
 }
 
 apply_chrome_doh() {
     local num="$1" desc="$2"
     local POLICY_USER="${SUDO_USER:-$(id -un)}"
     local PLIST="/Library/Managed Preferences/$POLICY_USER/com.google.Chrome.plist"
-    local before after="DnsOverHttpsMode=off"
-    [ -f "$PLIST" ] && before=$(sudo /usr/libexec/PlistBuddy -c "Print :DnsOverHttpsMode" "$PLIST" 2>/dev/null || echo "not set") || before="policy not present"
-    _run_item "$num" "chrome_doh" "$desc" "$before" "$after" || return 0
-    [ "$DRY_RUN" = true ] && return 0
-    sudo mkdir -p "/Library/Managed Preferences/$POLICY_USER"
-    sudo /usr/libexec/PlistBuddy \
-        -c "Add :DnsOverHttpsMode string off" "$PLIST" 2>/dev/null || \
-    sudo /usr/libexec/PlistBuddy \
-        -c "Set :DnsOverHttpsMode off" "$PLIST"
-    ok "Chrome DoH = off (managed policy)"
+    local current default="(unmanaged)" optimized="DnsOverHttpsMode=off"
+    [ -f "$PLIST" ] && current=$(sudo /usr/libexec/PlistBuddy -c "Print :DnsOverHttpsMode" "$PLIST" 2>/dev/null || echo "not set") || current="policy not present"
+    _run_item "$num" "chrome_doh" "$desc" "$current" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
+    if [ "$_rc" -eq 2 ]; then
+        sudo /usr/libexec/PlistBuddy -c "Delete :DnsOverHttpsMode" "$PLIST" 2>/dev/null || true
+        ok "Chrome DoH policy removed (Chrome default: unmanaged)"
+    else
+        sudo mkdir -p "/Library/Managed Preferences/$POLICY_USER"
+        sudo /usr/libexec/PlistBuddy \
+            -c "Add :DnsOverHttpsMode string off" "$PLIST" 2>/dev/null || \
+        sudo /usr/libexec/PlistBuddy \
+            -c "Set :DnsOverHttpsMode off" "$PLIST"
+        ok "Chrome DoH = off (managed policy)"
+    fi
 }
 
 apply_dns_flush() {
     local num="$1" desc="$2"
-    local before="(current DNS cache)" after="flushed"
-    _run_item "$num" "dns_flush" "$desc" "$before" "$after" || return 0
-    [ "$DRY_RUN" = true ] && return 0
+    local current="(live DNS cache)" default="(flush)" optimized="(flush)"
+    _run_item "$num" "dns_flush" "$desc" "$current" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
     sudo dscacheutil -flushcache
     sudo killall -HUP mDNSResponder 2>/dev/null || true
     ok "DNS cache flushed"
@@ -1645,344 +2189,410 @@ apply_dns_flush() {
 
 # ── CHROME ────────────────────────────────────────────────────────────────
 
-_chrome_policy() {
-    local key="$1" type="$2" value="$3"
+_chrome_plist() {
     local POLICY_USER="${SUDO_USER:-$(id -un)}"
-    local PLIST="/Library/Managed Preferences/$POLICY_USER/com.google.Chrome.plist"
-    local before after="${key}=${value}"
-    [ -f "$PLIST" ] && before=$(sudo /usr/libexec/PlistBuddy -c "Print :${key}" "$PLIST" 2>/dev/null || echo "not set") || before="policy not present"
-    echo "$POLICY_USER" "$PLIST" "$before" "$after"
+    echo "/Library/Managed Preferences/$POLICY_USER/com.google.Chrome.plist"
+}
+
+_chrome_read() {
+    local PLIST="$1" key="$2"
+    [ -f "$PLIST" ] && sudo /usr/libexec/PlistBuddy -c "Print :${key}" "$PLIST" 2>/dev/null || echo "(not set)"
+}
+
+_chrome_write_int() {
+    local PLIST="$1" key="$2" val="$3"
+    sudo mkdir -p "$(dirname "$PLIST")"
+    sudo /usr/libexec/PlistBuddy -c "Add :${key} integer ${val}" "$PLIST" 2>/dev/null || \
+    sudo /usr/libexec/PlistBuddy -c "Set :${key} ${val}" "$PLIST"
+}
+
+_chrome_write_bool() {
+    local PLIST="$1" key="$2" val="$3"
+    sudo mkdir -p "$(dirname "$PLIST")"
+    sudo /usr/libexec/PlistBuddy -c "Add :${key} bool ${val}" "$PLIST" 2>/dev/null || \
+    sudo /usr/libexec/PlistBuddy -c "Set :${key} ${val}" "$PLIST"
+}
+
+_chrome_delete() {
+    local PLIST="$1" key="$2"
+    [ -f "$PLIST" ] && sudo /usr/libexec/PlistBuddy -c "Delete :${key}" "$PLIST" 2>/dev/null || true
 }
 
 apply_chrome_memory_saver() {
     local num="$1" desc="$2"
-    local POLICY_USER="${SUDO_USER:-$(id -un)}"
-    local PLIST="/Library/Managed Preferences/$POLICY_USER/com.google.Chrome.plist"
-    local before after="MemorySaverModeSavings=2 (extreme)"
-    [ -f "$PLIST" ] && before=$(sudo /usr/libexec/PlistBuddy -c "Print :MemorySaverModeSavings" "$PLIST" 2>/dev/null || echo "not set") || before="policy not present"
-    _run_item "$num" "chrome_memory_saver" "$desc" "$before" "$after" || return 0
-    [ "$DRY_RUN" = true ] && return 0
-    sudo mkdir -p "/Library/Managed Preferences/$POLICY_USER"
-    sudo /usr/libexec/PlistBuddy \
-        -c "Add :MemorySaverModeSavings integer 2" "$PLIST" 2>/dev/null || \
-    sudo /usr/libexec/PlistBuddy \
-        -c "Set :MemorySaverModeSavings 2" "$PLIST"
-    ok "Chrome Memory Saver = extreme (managed policy)"
+    local PLIST; PLIST=$(_chrome_plist)
+    local current default="1 (moderate, unmanaged)" optimized="2 (extreme)"
+    current=$(_chrome_read "$PLIST" "MemorySaverModeSavings")
+    _run_item "$num" "chrome_memory_saver" "$desc" "$current" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
+    if [ "$_rc" -eq 2 ]; then
+        _chrome_delete "$PLIST" "MemorySaverModeSavings"
+        ok "Chrome MemorySaverModeSavings policy removed"
+    else
+        _chrome_write_int "$PLIST" "MemorySaverModeSavings" 2
+        ok "Chrome Memory Saver = extreme (managed policy)"
+    fi
 }
 
 apply_chrome_tab_discard() {
     local num="$1" desc="$2"
-    local POLICY_USER="${SUDO_USER:-$(id -un)}"
-    local PLIST="/Library/Managed Preferences/$POLICY_USER/com.google.Chrome.plist"
-    local before after="AutomaticTabDiscarding=true"
-    [ -f "$PLIST" ] && before=$(sudo /usr/libexec/PlistBuddy -c "Print :AutomaticTabDiscarding" "$PLIST" 2>/dev/null || echo "not set") || before="policy not present"
-    _run_item "$num" "chrome_tab_discard" "$desc" "$before" "$after" || return 0
-    [ "$DRY_RUN" = true ] && return 0
-    sudo mkdir -p "/Library/Managed Preferences/$POLICY_USER"
-    sudo /usr/libexec/PlistBuddy \
-        -c "Add :AutomaticTabDiscarding bool true" "$PLIST" 2>/dev/null || \
-    sudo /usr/libexec/PlistBuddy \
-        -c "Set :AutomaticTabDiscarding true" "$PLIST"
-    ok "Chrome auto tab discarding ON (managed policy)"
+    local PLIST; PLIST=$(_chrome_plist)
+    local current default="true (unmanaged)" optimized="true"
+    current=$(_chrome_read "$PLIST" "AutomaticTabDiscarding")
+    _run_item "$num" "chrome_tab_discard" "$desc" "$current" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
+    if [ "$_rc" -eq 2 ]; then
+        _chrome_delete "$PLIST" "AutomaticTabDiscarding"
+        ok "Chrome AutomaticTabDiscarding policy removed"
+    else
+        _chrome_write_bool "$PLIST" "AutomaticTabDiscarding" true
+        ok "Chrome auto tab discarding ON (managed policy)"
+    fi
 }
 
 apply_chrome_high_efficiency() {
     local num="$1" desc="$2"
-    local POLICY_USER="${SUDO_USER:-$(id -un)}"
-    local PLIST="/Library/Managed Preferences/$POLICY_USER/com.google.Chrome.plist"
-    local before after="HighEfficiencyModeEnabled=2 (always on)"
-    [ -f "$PLIST" ] && before=$(sudo /usr/libexec/PlistBuddy -c "Print :HighEfficiencyModeEnabled" "$PLIST" 2>/dev/null || echo "not set") || before="policy not present"
-    _run_item "$num" "chrome_high_efficiency" "$desc" "$before" "$after" || return 0
-    [ "$DRY_RUN" = true ] && return 0
-    sudo mkdir -p "/Library/Managed Preferences/$POLICY_USER"
-    sudo /usr/libexec/PlistBuddy \
-        -c "Add :HighEfficiencyModeEnabled integer 2" "$PLIST" 2>/dev/null || \
-    sudo /usr/libexec/PlistBuddy \
-        -c "Set :HighEfficiencyModeEnabled 2" "$PLIST"
-    ok "Chrome High Efficiency mode = always on (managed policy)"
+    local PLIST; PLIST=$(_chrome_plist)
+    local current default="(user-controlled)" optimized="2 (always on)"
+    current=$(_chrome_read "$PLIST" "HighEfficiencyModeEnabled")
+    _run_item "$num" "chrome_high_efficiency" "$desc" "$current" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
+    if [ "$_rc" -eq 2 ]; then
+        _chrome_delete "$PLIST" "HighEfficiencyModeEnabled"
+        ok "Chrome HighEfficiencyModeEnabled policy removed"
+    else
+        _chrome_write_int "$PLIST" "HighEfficiencyModeEnabled" 2
+        ok "Chrome High Efficiency mode = always on (managed policy)"
+    fi
 }
 
 apply_chrome_site_isolation() {
     local num="$1" desc="$2"
-    local POLICY_USER="${SUDO_USER:-$(id -un)}"
-    local PLIST="/Library/Managed Preferences/$POLICY_USER/com.google.Chrome.plist"
-    local before after="SitePerProcess=false + IsolateOrigins=mail.google.com"
-    before="SitePerProcess=$([ -f "$PLIST" ] && sudo /usr/libexec/PlistBuddy -c "Print :SitePerProcess" "$PLIST" 2>/dev/null || echo "default(true)"), IsolateOrigins=$([ -f "$PLIST" ] && sudo /usr/libexec/PlistBuddy -c "Print :IsolateOrigins" "$PLIST" 2>/dev/null || echo "not set")"
-    _run_item "$num" "chrome_site_isolation" "$desc" "$before" "$after" || return 0
-    [ "$DRY_RUN" = true ] && return 0
-    sudo mkdir -p "/Library/Managed Preferences/$POLICY_USER"
-    sudo /usr/libexec/PlistBuddy \
-        -c "Add :SitePerProcess bool false" "$PLIST" 2>/dev/null || \
-    sudo /usr/libexec/PlistBuddy \
-        -c "Set :SitePerProcess false" "$PLIST"
-    sudo /usr/libexec/PlistBuddy \
-        -c "Add :IsolateOrigins string https://mail.google.com" "$PLIST" 2>/dev/null || \
-    sudo /usr/libexec/PlistBuddy \
-        -c "Set :IsolateOrigins https://mail.google.com" "$PLIST"
-    ok "Chrome SitePerProcess=false, IsolateOrigins=mail.google.com (managed policy)"
+    local PLIST; PLIST=$(_chrome_plist)
+    local _spi _iso
+    _spi=$(_chrome_read "$PLIST" "SitePerProcess")
+    _iso=$(_chrome_read "$PLIST" "IsolateOrigins")
+    local current="SitePerProcess=${_spi} IsolateOrigins=${_iso}" default="SitePerProcess=true (unmanaged)" optimized="SitePerProcess=false + IsolateOrigins=mail.google.com"
+    _run_item "$num" "chrome_site_isolation" "$desc" "$current" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
+    if [ "$_rc" -eq 2 ]; then
+        _chrome_delete "$PLIST" "SitePerProcess"
+        _chrome_delete "$PLIST" "IsolateOrigins"
+        ok "Chrome site isolation policy removed (Chrome default: SitePerProcess=true)"
+    else
+        _chrome_write_bool "$PLIST" "SitePerProcess" false
+        sudo mkdir -p "$(dirname "$PLIST")"
+        sudo /usr/libexec/PlistBuddy -c "Add :IsolateOrigins string https://mail.google.com" "$PLIST" 2>/dev/null || \
+        sudo /usr/libexec/PlistBuddy -c "Set :IsolateOrigins https://mail.google.com" "$PLIST"
+        ok "Chrome SitePerProcess=false, IsolateOrigins=mail.google.com (managed policy)"
+    fi
 }
 
 apply_chrome_background_mode() {
     local num="$1" desc="$2"
-    local POLICY_USER="${SUDO_USER:-$(id -un)}"
-    local PLIST="/Library/Managed Preferences/$POLICY_USER/com.google.Chrome.plist"
-    local before after="BackgroundModeEnabled=false"
-    [ -f "$PLIST" ] && before=$(sudo /usr/libexec/PlistBuddy -c "Print :BackgroundModeEnabled" "$PLIST" 2>/dev/null || echo "not set") || before="policy not present"
-    _run_item "$num" "chrome_background_mode" "$desc" "$before" "$after" || return 0
-    [ "$DRY_RUN" = true ] && return 0
-    sudo mkdir -p "/Library/Managed Preferences/$POLICY_USER"
-    sudo /usr/libexec/PlistBuddy \
-        -c "Add :BackgroundModeEnabled bool false" "$PLIST" 2>/dev/null || \
-    sudo /usr/libexec/PlistBuddy \
-        -c "Set :BackgroundModeEnabled false" "$PLIST"
-    ok "Chrome background mode = OFF (managed policy)"
+    local PLIST; PLIST=$(_chrome_plist)
+    local current default="true (runs in background)" optimized="false (exits fully)"
+    current=$(_chrome_read "$PLIST" "BackgroundModeEnabled")
+    _run_item "$num" "chrome_background_mode" "$desc" "$current" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
+    if [ "$_rc" -eq 2 ]; then
+        _chrome_delete "$PLIST" "BackgroundModeEnabled"
+        ok "Chrome BackgroundModeEnabled policy removed"
+    else
+        _chrome_write_bool "$PLIST" "BackgroundModeEnabled" false
+        ok "Chrome background mode = OFF (managed policy)"
+    fi
 }
 
 apply_chrome_startup_boost() {
     local num="$1" desc="$2"
-    local POLICY_USER="${SUDO_USER:-$(id -un)}"
-    local PLIST="/Library/Managed Preferences/$POLICY_USER/com.google.Chrome.plist"
-    local before after="StartupBoostEnabled=false"
-    [ -f "$PLIST" ] && before=$(sudo /usr/libexec/PlistBuddy -c "Print :StartupBoostEnabled" "$PLIST" 2>/dev/null || echo "not set") || before="policy not present"
-    _run_item "$num" "chrome_startup_boost" "$desc" "$before" "$after" || return 0
-    [ "$DRY_RUN" = true ] && return 0
-    sudo mkdir -p "/Library/Managed Preferences/$POLICY_USER"
-    sudo /usr/libexec/PlistBuddy \
-        -c "Add :StartupBoostEnabled bool false" "$PLIST" 2>/dev/null || \
-    sudo /usr/libexec/PlistBuddy \
-        -c "Set :StartupBoostEnabled false" "$PLIST"
-    ok "Chrome startup boost = OFF (managed policy)"
+    local PLIST; PLIST=$(_chrome_plist)
+    local current default="(N/A on macOS)" optimized="false"
+    current=$(_chrome_read "$PLIST" "StartupBoostEnabled")
+    _run_item "$num" "chrome_startup_boost" "$desc" "$current" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
+    if [ "$_rc" -eq 2 ]; then
+        _chrome_delete "$PLIST" "StartupBoostEnabled"
+        ok "Chrome StartupBoostEnabled policy removed"
+    else
+        _chrome_write_bool "$PLIST" "StartupBoostEnabled" false
+        ok "Chrome startup boost = OFF (managed policy)"
+    fi
 }
 
 apply_chrome_battery_saver() {
     local num="$1" desc="$2"
-    local POLICY_USER="${SUDO_USER:-$(id -un)}"
-    local PLIST="/Library/Managed Preferences/$POLICY_USER/com.google.Chrome.plist"
-    local before after="BatterySaverModeAvailability=3 (always on)"
-    [ -f "$PLIST" ] && before=$(sudo /usr/libexec/PlistBuddy -c "Print :BatterySaverModeAvailability" "$PLIST" 2>/dev/null || echo "not set") || before="policy not present"
-    _run_item "$num" "chrome_battery_saver" "$desc" "$before" "$after" || return 0
-    [ "$DRY_RUN" = true ] && return 0
-    sudo mkdir -p "/Library/Managed Preferences/$POLICY_USER"
-    sudo /usr/libexec/PlistBuddy \
-        -c "Add :BatterySaverModeAvailability integer 3" "$PLIST" 2>/dev/null || \
-    sudo /usr/libexec/PlistBuddy \
-        -c "Set :BatterySaverModeAvailability 3" "$PLIST"
-    ok "Chrome Battery Saver = always on (managed policy)"
+    local PLIST; PLIST=$(_chrome_plist)
+    local current default="(user-controlled)" optimized="3 (always on)"
+    current=$(_chrome_read "$PLIST" "BatterySaverModeAvailability")
+    _run_item "$num" "chrome_battery_saver" "$desc" "$current" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
+    if [ "$_rc" -eq 2 ]; then
+        _chrome_delete "$PLIST" "BatterySaverModeAvailability"
+        ok "Chrome BatterySaverModeAvailability policy removed"
+    else
+        _chrome_write_int "$PLIST" "BatterySaverModeAvailability" 3
+        ok "Chrome Battery Saver = always on (managed policy)"
+    fi
 }
 
 apply_chrome_iframe_throttle() {
     local num="$1" desc="$2"
-    local POLICY_USER="${SUDO_USER:-$(id -un)}"
-    local PLIST="/Library/Managed Preferences/$POLICY_USER/com.google.Chrome.plist"
-    local before after="ThrottleNonVisibleCrossOriginIframesEnabled=true"
-    [ -f "$PLIST" ] && before=$(sudo /usr/libexec/PlistBuddy -c "Print :ThrottleNonVisibleCrossOriginIframesEnabled" "$PLIST" 2>/dev/null || echo "not set") || before="policy not present"
-    _run_item "$num" "chrome_iframe_throttle" "$desc" "$before" "$after" || return 0
-    [ "$DRY_RUN" = true ] && return 0
-    sudo mkdir -p "/Library/Managed Preferences/$POLICY_USER"
-    sudo /usr/libexec/PlistBuddy \
-        -c "Add :ThrottleNonVisibleCrossOriginIframesEnabled bool true" "$PLIST" 2>/dev/null || \
-    sudo /usr/libexec/PlistBuddy \
-        -c "Set :ThrottleNonVisibleCrossOriginIframesEnabled true" "$PLIST"
-    ok "Chrome iframe throttle = ON (managed policy)"
+    local PLIST; PLIST=$(_chrome_plist)
+    local current default="true (Chrome default)" optimized="true (enforced)"
+    current=$(_chrome_read "$PLIST" "ThrottleNonVisibleCrossOriginIframesEnabled")
+    _run_item "$num" "chrome_iframe_throttle" "$desc" "$current" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
+    if [ "$_rc" -eq 2 ]; then
+        _chrome_delete "$PLIST" "ThrottleNonVisibleCrossOriginIframesEnabled"
+        ok "Chrome iframe throttle policy removed"
+    else
+        _chrome_write_bool "$PLIST" "ThrottleNonVisibleCrossOriginIframesEnabled" true
+        ok "Chrome iframe throttle = ON (managed policy)"
+    fi
 }
 
 apply_chrome_disk_cache() {
     local num="$1" desc="$2"
-    local POLICY_USER="${SUDO_USER:-$(id -un)}"
-    local PLIST="/Library/Managed Preferences/$POLICY_USER/com.google.Chrome.plist"
-    local before after="DiskCacheSize=1073741824 (1 GB)"
-    [ -f "$PLIST" ] && before=$(sudo /usr/libexec/PlistBuddy -c "Print :DiskCacheSize" "$PLIST" 2>/dev/null || echo "not set") || before="policy not present"
-    _run_item "$num" "chrome_disk_cache" "$desc" "$before" "$after" || return 0
-    [ "$DRY_RUN" = true ] && return 0
-    sudo mkdir -p "/Library/Managed Preferences/$POLICY_USER"
-    sudo /usr/libexec/PlistBuddy \
-        -c "Add :DiskCacheSize integer 1073741824" "$PLIST" 2>/dev/null || \
-    sudo /usr/libexec/PlistBuddy \
-        -c "Set :DiskCacheSize 1073741824" "$PLIST"
-    ok "Chrome disk cache = 1 GB (managed policy)"
+    local PLIST; PLIST=$(_chrome_plist)
+    local current default="~320 MB (auto-sized)" optimized="1073741824 (1 GB)"
+    current=$(_chrome_read "$PLIST" "DiskCacheSize")
+    _run_item "$num" "chrome_disk_cache" "$desc" "$current" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
+    if [ "$_rc" -eq 2 ]; then
+        _chrome_delete "$PLIST" "DiskCacheSize"
+        ok "Chrome DiskCacheSize policy removed (Chrome will auto-size)"
+    else
+        _chrome_write_int "$PLIST" "DiskCacheSize" 1073741824
+        ok "Chrome disk cache = 1 GB (managed policy)"
+    fi
 }
 
 apply_chrome_back_forward_cache() {
     local num="$1" desc="$2"
-    local POLICY_USER="${SUDO_USER:-$(id -un)}"
-    local PLIST="/Library/Managed Preferences/$POLICY_USER/com.google.Chrome.plist"
-    local before after="BackForwardCacheEnabled=true"
-    [ -f "$PLIST" ] && before=$(sudo /usr/libexec/PlistBuddy -c "Print :BackForwardCacheEnabled" "$PLIST" 2>/dev/null || echo "not set") || before="policy not present"
-    _run_item "$num" "chrome_back_forward_cache" "$desc" "$before" "$after" || return 0
-    [ "$DRY_RUN" = true ] && return 0
-    sudo mkdir -p "/Library/Managed Preferences/$POLICY_USER"
-    sudo /usr/libexec/PlistBuddy \
-        -c "Add :BackForwardCacheEnabled bool true" "$PLIST" 2>/dev/null || \
-    sudo /usr/libexec/PlistBuddy \
-        -c "Set :BackForwardCacheEnabled true" "$PLIST"
-    ok "Chrome Back/Forward cache = ON (managed policy)"
+    local PLIST; PLIST=$(_chrome_plist)
+    local current default="true (Chrome default)" optimized="true (enforced)"
+    current=$(_chrome_read "$PLIST" "BackForwardCacheEnabled")
+    _run_item "$num" "chrome_back_forward_cache" "$desc" "$current" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
+    if [ "$_rc" -eq 2 ]; then
+        _chrome_delete "$PLIST" "BackForwardCacheEnabled"
+        ok "Chrome BackForwardCacheEnabled policy removed"
+    else
+        _chrome_write_bool "$PLIST" "BackForwardCacheEnabled" true
+        ok "Chrome Back/Forward cache = ON (managed policy)"
+    fi
 }
 
 # ── UPDATES ────────────────────────────────────────────────────────────────
 
 apply_apple_autoupdate() {
     local num="$1" desc="$2"
-    local before after="AutomaticCheckEnabled=false (user + system domain)"
-    before=$(dfw read com.apple.SoftwareUpdate AutomaticCheckEnabled 2>/dev/null || echo "default (true)")
-    _run_item "$num" "apple_autoupdate" "$desc" "$before" "$after" || return 0
-    [ "$DRY_RUN" = true ] && return 0
-    dfw write com.apple.commerce AutoUpdate -bool false
-    dfw write com.apple.SoftwareUpdate AutomaticDownload -bool false
-    dfw write com.apple.SoftwareUpdate AutomaticCheckEnabled -bool false
-    sudo defaults write /Library/Preferences/com.apple.SoftwareUpdate AutomaticCheckEnabled -bool false
-    sudo defaults write /Library/Preferences/com.apple.SoftwareUpdate AutomaticDownload -bool false
-    sudo defaults write /Library/Preferences/com.apple.SoftwareUpdate ConfigDataInstall -bool false
-    sudo defaults write /Library/Preferences/com.apple.SoftwareUpdate CriticalUpdateInstall -bool false
-    sudo defaults write /Library/Preferences/com.apple.SoftwareUpdate AutomaticallyInstallMacOSUpdates -bool false
-    ok "Apple Software Update disabled (user + system domain)"
+    local current default="true (auto-check enabled)" optimized="false (all auto-update disabled)"
+    current=$(dfw read com.apple.SoftwareUpdate AutomaticCheckEnabled 2>/dev/null || echo "(not set)")
+    _run_item "$num" "apple_autoupdate" "$desc" "$current" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
+    if [ "$_rc" -eq 2 ]; then
+        dfw write com.apple.commerce AutoUpdate -bool true
+        dfw write com.apple.SoftwareUpdate AutomaticDownload -bool true
+        dfw write com.apple.SoftwareUpdate AutomaticCheckEnabled -bool true
+        sudo defaults write /Library/Preferences/com.apple.SoftwareUpdate AutomaticCheckEnabled -bool true
+        sudo defaults write /Library/Preferences/com.apple.SoftwareUpdate AutomaticDownload -bool true
+        sudo defaults write /Library/Preferences/com.apple.SoftwareUpdate ConfigDataInstall -bool true
+        sudo defaults write /Library/Preferences/com.apple.SoftwareUpdate CriticalUpdateInstall -bool true
+        sudo defaults write /Library/Preferences/com.apple.SoftwareUpdate AutomaticallyInstallMacOSUpdates -bool true
+        ok "Apple Software Update reset to macOS default (enabled)"
+    else
+        dfw write com.apple.commerce AutoUpdate -bool false
+        dfw write com.apple.SoftwareUpdate AutomaticDownload -bool false
+        dfw write com.apple.SoftwareUpdate AutomaticCheckEnabled -bool false
+        sudo defaults write /Library/Preferences/com.apple.SoftwareUpdate AutomaticCheckEnabled -bool false
+        sudo defaults write /Library/Preferences/com.apple.SoftwareUpdate AutomaticDownload -bool false
+        sudo defaults write /Library/Preferences/com.apple.SoftwareUpdate ConfigDataInstall -bool false
+        sudo defaults write /Library/Preferences/com.apple.SoftwareUpdate CriticalUpdateInstall -bool false
+        sudo defaults write /Library/Preferences/com.apple.SoftwareUpdate AutomaticallyInstallMacOSUpdates -bool false
+        ok "Apple Software Update disabled (user + system domain)"
+    fi
 }
 
 apply_chrome_keystone() {
     local num="$1" desc="$2"
-    local before after="all 4 Keystone plists disabled"
-    before="(checking)"
-    _run_item "$num" "chrome_keystone" "$desc" "$before" "$after" || return 0
-    [ "$DRY_RUN" = true ] && return 0
+    local _active=0
     for plist_label in \
         "gui/$REAL_UID/com.google.keystone.agent:/Library/LaunchAgents/com.google.keystone.agent.plist" \
         "gui/$REAL_UID/com.google.keystone.xpcservice:/Library/LaunchAgents/com.google.keystone.xpcservice.plist" \
         "system/com.google.keystone.daemon:/Library/LaunchDaemons/com.google.keystone.daemon.plist" \
         "system/com.google.GoogleUpdater.wake.system:/Library/LaunchDaemons/com.google.GoogleUpdater.wake.system.plist"
     do
-        local domain_label="${plist_label%%:*}"
-        local plist_path="${plist_label##*:}"
-        if [ -f "$plist_path" ]; then
-            launchctl disable "$domain_label" 2>/dev/null || true
-            launchctl bootout "$domain_label" 2>/dev/null || true
-            log "  Disabled: $domain_label"
-        fi
+        [ -f "${plist_label##*:}" ] && _active=$((_active+1))
     done
-    dfw write com.google.Keystone ShouldCheckForUpdates -bool false 2>/dev/null || true
-    sudo killall GoogleUpdater 2>/dev/null || true
-    ok "Chrome Keystone disabled"
+    local current="${_active}/4 Keystone agents present" default="Keystone enabled" optimized="all 4 Keystone agents disabled"
+    _run_item "$num" "chrome_keystone" "$desc" "$current" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
+    if [ "$_rc" -eq 2 ]; then
+        dfw write com.google.Keystone ShouldCheckForUpdates -bool true 2>/dev/null || true
+        ok "Chrome Keystone re-enabled (ShouldCheckForUpdates=true)"
+    else
+        for plist_label in \
+            "gui/$REAL_UID/com.google.keystone.agent:/Library/LaunchAgents/com.google.keystone.agent.plist" \
+            "gui/$REAL_UID/com.google.keystone.xpcservice:/Library/LaunchAgents/com.google.keystone.xpcservice.plist" \
+            "system/com.google.keystone.daemon:/Library/LaunchDaemons/com.google.keystone.daemon.plist" \
+            "system/com.google.GoogleUpdater.wake.system:/Library/LaunchDaemons/com.google.GoogleUpdater.wake.system.plist"
+        do
+            local domain_label="${plist_label%%:*}"
+            local plist_path="${plist_label##*:}"
+            if [ -f "$plist_path" ]; then
+                launchctl disable "$domain_label" 2>/dev/null || true
+                launchctl bootout "$domain_label" 2>/dev/null || true
+                log "  Disabled: $domain_label"
+            fi
+        done
+        dfw write com.google.Keystone ShouldCheckForUpdates -bool false 2>/dev/null || true
+        sudo killall GoogleUpdater 2>/dev/null || true
+        ok "Chrome Keystone disabled"
+    fi
 }
 
 apply_edge_updater() {
     local num="$1" desc="$2"
-    local before after="com.microsoft.EdgeUpdater.wake disabled"
     local PLIST="$REAL_HOME/Library/LaunchAgents/com.microsoft.EdgeUpdater.wake.plist"
-    [ -f "$PLIST" ] && before="present" || before="not installed"
-    _run_item "$num" "edge_updater" "$desc" "$before" "$after" || return 0
-    [ "$DRY_RUN" = true ] && return 0
-    if [ -f "$PLIST" ]; then
-        launchctl disable "gui/$REAL_UID/com.microsoft.EdgeUpdater.wake" 2>/dev/null || true
-        launchctl bootout "gui/$REAL_UID/com.microsoft.EdgeUpdater.wake" 2>/dev/null || true
+    local current default="enabled (if installed)" optimized="disabled"
+    [ -f "$PLIST" ] && current="present" || current="not installed"
+    _run_item "$num" "edge_updater" "$desc" "$current" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
+    if [ "$_rc" -eq 2 ]; then
+        [ -f "$PLIST" ] && launchctl enable "gui/$REAL_UID/com.microsoft.EdgeUpdater.wake" 2>/dev/null || true
+        ok "Edge updater re-enabled"
+    else
+        if [ -f "$PLIST" ]; then
+            launchctl disable "gui/$REAL_UID/com.microsoft.EdgeUpdater.wake" 2>/dev/null || true
+            launchctl bootout "gui/$REAL_UID/com.microsoft.EdgeUpdater.wake" 2>/dev/null || true
+        fi
+        sudo killall EdgeUpdater 2>/dev/null || true
+        ok "Edge updater disabled"
     fi
-    sudo killall EdgeUpdater 2>/dev/null || true
-    ok "Edge updater disabled"
 }
 
 apply_airdrop() {
     local num="$1" desc="$2"
-    local before after="true (disabled)"
-    before=$(dfw read com.apple.NetworkBrowser DisableAirDrop 2>/dev/null || echo "default (false)")
-    _run_item "$num" "airdrop" "$desc" "$before" "$after" || return 0
-    [ "$DRY_RUN" = true ] && return 0
-    dfw write com.apple.NetworkBrowser DisableAirDrop -bool true
-    ok "AirDrop disabled"
+    local current default="false (AirDrop on)" optimized="true (AirDrop off)"
+    current=$(dfw read com.apple.NetworkBrowser DisableAirDrop 2>/dev/null || echo "(not set)")
+    _run_item "$num" "airdrop" "$desc" "$current" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
+    if [ "$_rc" -eq 2 ]; then
+        dfw write com.apple.NetworkBrowser DisableAirDrop -bool false
+        ok "AirDrop re-enabled (macOS default)"
+    else
+        dfw write com.apple.NetworkBrowser DisableAirDrop -bool true
+        ok "AirDrop disabled"
+    fi
 }
 
 apply_handoff_continuity() {
     local num="$1" desc="$2"
-    local before after="ActivityReceiving/AdvertisingAllowed = false"
-    before=$(dfw -currentHost read com.apple.coreservices.useractivityd ActivityReceivingAllowed 2>/dev/null || echo "default (true)")
-    _run_item "$num" "handoff_continuity" "$desc" "$before" "$after" || return 0
-    [ "$DRY_RUN" = true ] && return 0
-    dfw -currentHost write com.apple.coreservices.useractivityd ActivityReceivingAllowed -bool false
-    dfw -currentHost write com.apple.coreservices.useractivityd ActivityAdvertisingAllowed -bool false
-    ok "Handoff and Continuity disabled"
+    local current default="true (Handoff on)" optimized="false (Handoff off)"
+    current=$(dfw -currentHost read com.apple.coreservices.useractivityd ActivityReceivingAllowed 2>/dev/null || echo "(not set)")
+    _run_item "$num" "handoff_continuity" "$desc" "$current" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
+    local _val; [ "$_rc" -eq 2 ] && _val=true || _val=false
+    dfw -currentHost write com.apple.coreservices.useractivityd ActivityReceivingAllowed -bool "$_val"
+    dfw -currentHost write com.apple.coreservices.useractivityd ActivityAdvertisingAllowed -bool "$_val"
+    ok "Handoff/Continuity set to ${_val}"
 }
 
 apply_chrome_crashpad() {
     local num="$1" desc="$2"
     local CPDIR="$REAL_HOME/Library/Application Support/Google/RLZ/Crashpad"
-    local before after="settings.dat created"
-    [ -f "$CPDIR/settings.dat" ] && before="already exists" || before="missing (causes log error)"
-    _run_item "$num" "chrome_crashpad" "$desc" "$before" "$after" || return 0
-    [ "$DRY_RUN" = true ] && return 0
+    local current default="(absent)" optimized="settings.dat created"
+    [ -f "$CPDIR/settings.dat" ] && current="already exists" || current="missing (causes log error)"
+    _run_item "$num" "chrome_crashpad" "$desc" "$current" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
     sudo -u "$REAL_USER" mkdir -p "$CPDIR"
     sudo -u "$REAL_USER" touch "$CPDIR/settings.dat"
     ok "Chrome Crashpad settings.dat created"
 }
 
 # ── SECURITY ───────────────────────────────────────────────────────────────
+
 apply_smb_guest() {
     local num="$1" desc="$2"
     local SMB_PLIST="/Library/Preferences/SystemConfiguration/com.apple.smb.server"
-    local before after="false (auth required)"
-    before=$(defaults read "$SMB_PLIST" AllowGuestAccess 2>/dev/null || echo "default (enabled)")
-    _run_item "$num" "smb_guest" "$desc" "$before" "$after" || return 0
-    [ "$DRY_RUN" = true ] && return 0
-    sudo defaults write "$SMB_PLIST" AllowGuestAccess -bool false
-    ok "SMB AllowGuestAccess = false"
+    local current default="true (guest allowed)" optimized="false (auth required)"
+    current=$(defaults read "$SMB_PLIST" AllowGuestAccess 2>/dev/null || echo "(not set)")
+    _run_item "$num" "smb_guest" "$desc" "$current" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
+    local _val; [ "$_rc" -eq 2 ] && _val=true || _val=false
+    sudo defaults write "$SMB_PLIST" AllowGuestAccess -bool "$_val"
+    ok "SMB AllowGuestAccess = ${_val}"
 }
 
 apply_ssh_server() {
     local num="$1" desc="$2"
-    local before after="off"
-    before=$(sudo systemsetup -getremotelogin 2>/dev/null | awk '{print $NF}' || echo "?")
-    _run_item "$num" "ssh_server" "$desc" "$before" "$after" || return 0
-    [ "$DRY_RUN" = true ] && return 0
+    local current default="Off" optimized="Off"
+    current=$(sudo systemsetup -getremotelogin 2>/dev/null | awk '{print $NF}' || echo "?")
+    _run_item "$num" "ssh_server" "$desc" "$current" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
     local _ssh_err
-    _ssh_err=$(echo "yes" | sudo systemsetup -setremotelogin off 2>&1)
-    if [ $? -eq 0 ]; then
-        ok "SSH server disabled"
+    if [ "$_rc" -eq 2 ]; then
+        # macOS default is Off — same as optimized; re-enable if user wants
+        _ssh_err=$(echo "yes" | sudo systemsetup -setremotelogin on 2>&1)
+        [ $? -eq 0 ] && ok "SSH server enabled" || warn "Could not enable SSH server: $_ssh_err"
     else
-        warn "Could not disable SSH server: $_ssh_err"
+        _ssh_err=$(echo "yes" | sudo systemsetup -setremotelogin off 2>&1)
+        [ $? -eq 0 ] && ok "SSH server disabled" || warn "Could not disable SSH server: $_ssh_err"
     fi
 }
 
 apply_remote_apple_events() {
     local num="$1" desc="$2"
-    local before after="off"
-    before=$(sudo systemsetup -getremoteappleevents 2>/dev/null | awk '{print $NF}' || echo "?")
-    _run_item "$num" "remote_apple_events" "$desc" "$before" "$after" || return 0
-    [ "$DRY_RUN" = true ] && return 0
-    # Already off — systemsetup -set* requires Full Disk Access but -get* does not.
-    # Skip the setter if the value is already correct to avoid a spurious warning.
-    if [ "$before" = "Off" ]; then
+    local current default="Off" optimized="Off"
+    current=$(sudo systemsetup -getremoteappleevents 2>/dev/null | awk '{print $NF}' || echo "?")
+    _run_item "$num" "remote_apple_events" "$desc" "$current" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
+    if [ "$current" = "Off" ] && [ "$_rc" -ne 2 ]; then
         ok "Remote Apple Events already off — skipping setter"
         return 0
     fi
     local _rae_err
-    _rae_err=$(sudo systemsetup -setremoteappleevents off 2>&1)
-    if [ $? -eq 0 ]; then
-        ok "Remote Apple Events disabled"
+    if [ "$_rc" -eq 2 ]; then
+        _rae_err=$(sudo systemsetup -setremoteappleevents on 2>&1)
+        [ $? -eq 0 ] && ok "Remote Apple Events enabled" || warn "Could not enable: $_rae_err"
     else
-        warn "Could not disable Remote Apple Events: $_rae_err"
+        _rae_err=$(sudo systemsetup -setremoteappleevents off 2>&1)
+        [ $? -eq 0 ] && ok "Remote Apple Events disabled" || warn "Could not disable: $_rae_err"
     fi
 }
 
 apply_gatekeeper() {
     local num="$1" desc="$2"
-    local before after="disabled (allow unsigned binaries)"
-    before=$(spctl --status 2>/dev/null | head -1 || echo "?")
-    _run_item "$num" "gatekeeper" "$desc" "$before" "$after" || return 0
-    [ "$DRY_RUN" = true ] && return 0
+    local current default="assessments enabled" optimized="assessments disabled"
+    current=$(spctl --status 2>/dev/null | head -1 || echo "?")
+    _run_item "$num" "gatekeeper" "$desc" "$current" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
     local _gk_err
-    _gk_err=$(sudo spctl --master-disable 2>&1)
-    if [ $? -eq 0 ]; then
-        ok "Gatekeeper disabled  (rollback: sudo spctl --master-enable)"
+    if [ "$_rc" -eq 2 ]; then
+        _gk_err=$(sudo spctl --master-enable 2>&1)
+        [ $? -eq 0 ] && ok "Gatekeeper re-enabled" || warn "Could not enable Gatekeeper: $_gk_err"
     else
-        warn "Could not disable Gatekeeper: $_gk_err"
+        _gk_err=$(sudo spctl --master-disable 2>&1)
+        [ $? -eq 0 ] && ok "Gatekeeper disabled" || warn "Could not disable Gatekeeper: $_gk_err"
     fi
 }
 
 apply_mdns_multicast() {
     local num="$1" desc="$2"
     local MDNS_PLIST="/Library/Preferences/com.apple.mDNSResponder.plist"
-    local before after="NoMulticastAdvertisements=true"
-    before=$(sudo defaults read "$MDNS_PLIST" NoMulticastAdvertisements 2>/dev/null || echo "default (false)")
-    _run_item "$num" "mdns_multicast" "$desc" "$before" "$after" || return 0
-    [ "$DRY_RUN" = true ] && return 0
-    sudo defaults write "$MDNS_PLIST" NoMulticastAdvertisements -bool true
+    local current default="false (mDNS advertising active)" optimized="true (multicast suppressed)"
+    current=$(sudo defaults read "$MDNS_PLIST" NoMulticastAdvertisements 2>/dev/null || echo "(not set)")
+    _run_item "$num" "mdns_multicast" "$desc" "$current" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
+    if [ "$_rc" -eq 2 ]; then
+        sudo defaults write "$MDNS_PLIST" NoMulticastAdvertisements -bool false
+    else
+        sudo defaults write "$MDNS_PLIST" NoMulticastAdvertisements -bool true
+    fi
     sudo killall -HUP mDNSResponder 2>/dev/null || true
-    ok "mDNS multicast advertisements suppressed"
+    ok "mDNS NoMulticastAdvertisements = $( [ "$_rc" -eq 2 ] && echo false || echo true )"
 }
 
 apply_hosts_telemetry() {
@@ -1997,31 +2607,42 @@ apply_hosts_telemetry() {
     for h in "${TELEMETRY_HOSTS[@]}"; do
         grep -qF "$h" /etc/hosts 2>/dev/null && already=$((already+1))
     done
-    local before="$already/${#TELEMETRY_HOSTS[@]} already blocked" after="all 11 blocked in /etc/hosts"
-    _run_item "$num" "hosts_telemetry" "$desc" "$before" "$after" || return 0
-    [ "$DRY_RUN" = true ] && return 0
-    local added=0
-    for h in "${TELEMETRY_HOSTS[@]}"; do
-        if ! grep -qF "$h" /etc/hosts 2>/dev/null; then
-            echo "0.0.0.0 $h" | sudo tee -a /etc/hosts > /dev/null
-            added=$((added+1))
-        fi
-    done
-    sudo killall -HUP mDNSResponder 2>/dev/null || true
-    ok "Added $added telemetry entries to /etc/hosts"
+    local current="${already}/${#TELEMETRY_HOSTS[@]} already blocked" default="none blocked" optimized="all 11 blocked in /etc/hosts"
+    _run_item "$num" "hosts_telemetry" "$desc" "$current" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
+    if [ "$_rc" -eq 2 ]; then
+        for h in "${TELEMETRY_HOSTS[@]}"; do
+            sudo sed -i.bak "/0\.0\.0\.0 ${h}/d" /etc/hosts 2>/dev/null || true
+        done
+        sudo killall -HUP mDNSResponder 2>/dev/null || true
+        ok "Telemetry entries removed from /etc/hosts"
+    else
+        local added=0
+        for h in "${TELEMETRY_HOSTS[@]}"; do
+            if ! grep -qF "$h" /etc/hosts 2>/dev/null; then
+                echo "0.0.0.0 $h" | sudo tee -a /etc/hosts > /dev/null
+                added=$((added+1))
+            fi
+        done
+        sudo killall -HUP mDNSResponder 2>/dev/null || true
+        ok "Added $added telemetry entries to /etc/hosts"
+    fi
 }
 
 apply_pfctl_telemetry() {
     local num="$1" desc="$2"
     local ANCHOR="/etc/pf.anchors/telemetry-block"
     local DAEMON_PLIST="/Library/LaunchDaemons/local.telemetry-pf.plist"
-    local before after="standalone LaunchDaemon loads anchor at every boot"
-    [ -f "$DAEMON_PLIST" ] && before="LaunchDaemon present" || before="not installed"
-    _run_item "$num" "pfctl_telemetry" "$desc" "$before" "$after" || return 0
-    [ "$DRY_RUN" = true ] && return 0
-
-    # Step 1: Write anchor rules file
-    sudo tee "$ANCHOR" > /dev/null << 'PFEOF'
+    local current default="not installed" optimized="LaunchDaemon loads anchor at every boot"
+    [ -f "$DAEMON_PLIST" ] && current="LaunchDaemon present" || current="not installed"
+    _run_item "$num" "pfctl_telemetry" "$desc" "$current" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
+    if [ "$_rc" -eq 2 ]; then
+        sudo launchctl bootout system/local.telemetry-pf 2>/dev/null || true
+        sudo rm -f "$DAEMON_PLIST" "$ANCHOR"
+        ok "pfctl telemetry block removed"
+    else
+        sudo tee "$ANCHOR" > /dev/null << 'PFEOF'
 # Block outbound telemetry — managed by optimizations.sh
 # Rollback: launchctl bootout system/local.telemetry-pf
 #           rm /Library/LaunchDaemons/local.telemetry-pf.plist
@@ -2033,10 +2654,7 @@ block out quick proto { tcp udp } to diagassets.apple.com
 block out quick proto { tcp udp } to api.smoot.apple.com
 block out quick proto { tcp udp } to pancake.apple.com
 PFEOF
-
-    # Step 2: Write LaunchDaemon plist — owns the lifecycle, survives OS updates
-    # /etc/pf.conf is NOT modified. This daemon loads our anchor independently.
-    sudo tee "$DAEMON_PLIST" > /dev/null << 'DAEMONEOF'
+        sudo tee "$DAEMON_PLIST" > /dev/null << 'DAEMONEOF'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -2059,30 +2677,31 @@ PFEOF
 </dict>
 </plist>
 DAEMONEOF
-
-    # Step 3: Load it now (bootout first in case it was already loaded)
-    sudo launchctl bootout system/local.telemetry-pf 2>/dev/null || true
-    sudo launchctl bootstrap system "$DAEMON_PLIST"
-    ok "pfctl telemetry block active via LaunchDaemon (survives OS updates)"
-    ok "Rollback: sudo launchctl bootout system/local.telemetry-pf && sudo rm $DAEMON_PLIST $ANCHOR"
+        sudo launchctl bootout system/local.telemetry-pf 2>/dev/null || true
+        sudo launchctl bootstrap system "$DAEMON_PLIST"
+        ok "pfctl telemetry block active via LaunchDaemon (survives OS updates)"
+        ok "Rollback: sudo launchctl bootout system/local.telemetry-pf && sudo rm $DAEMON_PLIST $ANCHOR"
+    fi
 }
 
 apply_alf_firewall() {
     local num="$1" desc="$2"
     local FW="/usr/libexec/ApplicationFirewall/socketfilterfw"
-    local before after="enabled + stealth mode on"
-    before=$("$FW" --getglobalstate 2>/dev/null | head -1 || echo "?")
-    _run_item "$num" "alf_firewall" "$desc" "$before" "$after" || return 0
-    [ "$DRY_RUN" = true ] && return 0
+    local current default="disabled" optimized="enabled + stealth mode on"
+    current=$("$FW" --getglobalstate 2>/dev/null | head -1 || echo "?")
+    _run_item "$num" "alf_firewall" "$desc" "$current" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
     local _fw_ok=true _fw_err
-    _fw_err=$(sudo "$FW" --setglobalstate on 2>&1)  || { warn "Firewall setglobalstate on: $_fw_err"; _fw_ok=false; }
-    _fw_err=$(sudo "$FW" --setstealthmode on 2>&1)   || { warn "Firewall setstealthmode on: $_fw_err"; _fw_ok=false; }
-    _fw_err=$(sudo "$FW" --setallowsigned on 2>&1)   || { warn "Firewall setallowsigned on: $_fw_err"; _fw_ok=false; }
-    _fw_err=$(sudo "$FW" --setblockall off 2>&1)      || { warn "Firewall setblockall off: $_fw_err"; _fw_ok=false; }
-    if [ "$_fw_ok" = true ]; then
-        ok "ALF firewall enabled with stealth mode"
+    if [ "$_rc" -eq 2 ]; then
+        _fw_err=$(sudo "$FW" --setglobalstate off 2>&1) || { warn "Firewall off: $_fw_err"; _fw_ok=false; }
+        [ "$_fw_ok" = true ] && ok "ALF firewall disabled (macOS default)"
     else
-        warn "ALF firewall partially configured — check warnings above"
+        _fw_err=$(sudo "$FW" --setglobalstate on 2>&1)  || { warn "Firewall on: $_fw_err"; _fw_ok=false; }
+        _fw_err=$(sudo "$FW" --setstealthmode on 2>&1)   || { warn "Stealth on: $_fw_err"; _fw_ok=false; }
+        _fw_err=$(sudo "$FW" --setallowsigned on 2>&1)   || { warn "Allowsigned on: $_fw_err"; _fw_ok=false; }
+        _fw_err=$(sudo "$FW" --setblockall off 2>&1)      || { warn "Blockall off: $_fw_err"; _fw_ok=false; }
+        [ "$_fw_ok" = true ] && ok "ALF firewall enabled with stealth mode" \
+                             || warn "ALF firewall partially configured — check warnings above"
     fi
 }
 
