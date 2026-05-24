@@ -249,7 +249,7 @@ siri_and_intelligence:
     - PreinstalledAssetsV2/RequiredByOs/com_apple_MobileAsset_SpeakerRecognitionASMacAssets
   launchagent_plists:
     - com.apple.Siri.agent
-    - com.apple.duetexpertd
+    #- com.apple.duetexpertd
   launchdaemon_plists: []
   agents:
     - assistantd
@@ -275,7 +275,7 @@ siri_and_intelligence:
     - ModelCatalogAgent
     # - mlhostd
     # - mlruntimed
-    - duetexpertd
+    #- duetexpertd
   daemons:
     #- com.apple.corespeechd.system
     - com.apple.modelcatalogd
@@ -1706,7 +1706,7 @@ ios_ecosystem:
   coreservices: []
   assets: []
   launchagent_plists:
-    - com.apple.duetexpertd
+  #  - com.apple.duetexpertd
   launchdaemon_plists: []
   agents:
     - MobileAccessoryUpdater.fudHelperAgent
@@ -2695,55 +2695,55 @@ patches:
 
   # Safari background services - disable auto-launch triggers
   # Safari works normally when manually launched, but these services won't auto-start at boot
-  safari_safebrowsing_plist:
-    path: System/Library/LaunchAgents/com.apple.Safari.SafeBrowsing.Service.plist
-    action: plist_delete_keys
-    keys:
-      - MachServices
-      - LaunchEvents
-    backup: /tmp/_safari_safebrowsing_original.plist
+  # safari_safebrowsing_plist:
+  #   path: System/Library/LaunchAgents/com.apple.Safari.SafeBrowsing.Service.plist
+  #   action: plist_delete_keys
+  #   keys:
+  #     - MachServices
+  #     - LaunchEvents
+  #   backup: /tmp/_safari_safebrowsing_original.plist
 
-  safari_bookmarks_sync_plist:
-    path: System/Library/LaunchAgents/com.apple.SafariBookmarksSyncAgent.plist
-    action: plist_delete_keys
-    keys:
-      - MachServices
-      - LaunchEvents
-    backup: /tmp/_safari_bookmarks_sync_original.plist
+  # safari_bookmarks_sync_plist:
+  #   path: System/Library/LaunchAgents/com.apple.SafariBookmarksSyncAgent.plist
+  #   action: plist_delete_keys
+  #   keys:
+  #     - MachServices
+  #     - LaunchEvents
+  #   backup: /tmp/_safari_bookmarks_sync_original.plist
 
-  safari_history_plist:
-    path: System/Library/LaunchAgents/com.apple.Safari.History.plist
-    action: plist_delete_keys
-    keys:
-      - MachServices
-      - LaunchEvents
-    backup: /tmp/_safari_history_original.plist
+  # safari_history_plist:
+  #   path: System/Library/LaunchAgents/com.apple.Safari.History.plist
+  #   action: plist_delete_keys
+  #   keys:
+  #     - MachServices
+  #     - LaunchEvents
+  #   backup: /tmp/_safari_history_original.plist
 
-  safari_history_service_plist:
-    path: System/Library/LaunchAgents/com.apple.SafariHistoryServiceAgent.plist
-    action: plist_delete_keys
-    keys:
-      - KeepAlive
-    backup: /tmp/_safari_history_service_original.plist
+  # safari_history_service_plist:
+  #   path: System/Library/LaunchAgents/com.apple.SafariHistoryServiceAgent.plist
+  #   action: plist_delete_keys
+  #   keys:
+  #     - KeepAlive
+  #   backup: /tmp/_safari_history_service_original.plist
 
-  safari_launch_agent_plist:
-    path: System/Library/LaunchAgents/com.apple.SafariLaunchAgent.plist
-    action: plist_delete_keys
-    keys:
-      - MachServices
-    backup: /tmp/_safari_launch_agent_original.plist
+  # safari_launch_agent_plist:
+  #   path: System/Library/LaunchAgents/com.apple.SafariLaunchAgent.plist
+  #   action: plist_delete_keys
+  #   keys:
+  #     - MachServices
+  #   backup: /tmp/_safari_launch_agent_original.plist
 
-  safari_notification_agent_plist:
-    path: System/Library/LaunchAgents/com.apple.SafariNotificationAgent.plist
-    action: plist_delete_keys
-    keys:
-      - LaunchEvents
-    backup: /tmp/_safari_notification_agent_original.plist
+  # safari_notification_agent_plist:
+  #   path: System/Library/LaunchAgents/com.apple.SafariNotificationAgent.plist
+  #   action: plist_delete_keys
+  #   keys:
+  #     - LaunchEvents
+  #   backup: /tmp/_safari_notification_agent_original.plist
 
-  safari_password_breach_plist:
-    path: System/Library/LaunchAgents/com.apple.Safari.PasswordBreachAgent.plist
-    action: plist_delete_keys
-    keys:
-      - MachServices
-      - LaunchEvents
-    backup: /tmp/_safari_password_breach_original.plist
+  # safari_password_breach_plist:
+  #   path: System/Library/LaunchAgents/com.apple.Safari.PasswordBreachAgent.plist
+  #   action: plist_delete_keys
+  #   keys:
+  #     - MachServices
+  #     - LaunchEvents
+  #   backup: /tmp/_safari_password_breach_original.plist

@@ -276,12 +276,8 @@ sub get_patch {
     my ($root, $patch_name, $subkey) = @_;
     my $patches = $root->{patches} // {};
     my $p = $patches->{$patch_name} // {};
-    if ($subkey =~ /^(path|action|backup|key)$/) {
+    if ($subkey =~ /^(path|action|backup)$/) {
         return $p->{$subkey} // '';
-    }
-    if ($subkey eq 'keys') {
-        my @v = ref $p->{keys} eq 'ARRAY' ? @{$p->{keys}} : ();
-        return join("\n", @v);
     }
     if ($subkey eq 'keep_services') {
         my @v = ref $p->{keep_services} eq 'ARRAY' ? @{$p->{keep_services}} : ();
@@ -1507,66 +1503,20 @@ if [ "$AGENTS_ONLY" = false ] && [ "$USER_ONLY" = false ] && [ "$DRY_RUN" = fals
         warn "Finder MenuBar.nib not found — skipping"
     fi
 
-    # [B4c] Dynamic plist patches from manifest.yaml patches section
-    # Supports: plist_delete_key (single key), plist_delete_keys (multiple keys)
-    log "[B4c] Processing dynamic plist patches from manifest..."
-    DYNAMIC_PATCHES=$("$PERL" -e '
-        use YAML::PP;
-        my $yp = YAML::PP->new;
-        my $root = $yp->load_file($ARGV[0]);
-        my $patches = $root->{patches} // {};
-        for my $name (sort keys %$patches) {
-            my $p = $patches->{$name};
-            my $action = $p->{action} // "";
-            next unless $action =~ /^plist_delete_key/;
-            my $path = $p->{path} // "";
-            next unless $path;
-            print "$name\t$path\t$action";
-            if ($action eq "plist_delete_key") {
-                print "\t" . ($p->{key} // "");
-            } elsif ($action eq "plist_delete_keys") {
-                my @keys = ref $p->{keys} eq "ARRAY" ? @{$p->{keys}} : ();
-                print "\t" . join(",", @keys);
-            }
-            print "\n";
-        }
-    ' "$MANIFEST" 2>/dev/null)
-    
-    if [ -n "$DYNAMIC_PATCHES" ]; then
-        echo "$DYNAMIC_PATCHES" | while IFS=$'\t' read -r patch_name rel_path action keys_arg; do
-            [ -z "$patch_name" ] && continue
-            PLIST_FILE="$MOUNT_POINT/$rel_path"
-            if [ ! -f "$PLIST_FILE" ]; then
-                log "  [$patch_name] plist not found — skipping"
-                continue
-            fi
-            # Backup
-            BACKUP_FILE="/tmp/_${patch_name}_$$.plist"
-            cp "$PLIST_FILE" "$BACKUP_FILE" 2>/dev/null || true
-            
-            if [ "$action" = "plist_delete_key" ]; then
-                if /usr/libexec/PlistBuddy -c "Print :$keys_arg" "$PLIST_FILE" &>/dev/null; then
-                    /usr/libexec/PlistBuddy -c "Delete :$keys_arg" "$PLIST_FILE" 2>/dev/null \
-                        && log "  [$patch_name] deleted key: $keys_arg" \
-                        || warn "  [$patch_name] failed to delete key: $keys_arg"
-                else
-                    log "  [$patch_name] key '$keys_arg' not present — skipping"
-                fi
-            elif [ "$action" = "plist_delete_keys" ]; then
-                IFS=',' read -ra KEY_ARRAY <<< "$keys_arg"
-                for key in "${KEY_ARRAY[@]}"; do
-                    if /usr/libexec/PlistBuddy -c "Print :$key" "$PLIST_FILE" &>/dev/null; then
-                        /usr/libexec/PlistBuddy -c "Delete :$key" "$PLIST_FILE" 2>/dev/null \
-                            && log "  [$patch_name] deleted key: $key" \
-                            || warn "  [$patch_name] failed to delete key: $key"
-                    else
-                        log "  [$patch_name] key '$key' not present — skipping"
-                    fi
-                done
-            fi
-        done
+    # [B4b] storeuid Info.plist patch (remove Apple menu "App Store" item)
+    log "[B4b] Patching storeuid Info.plist (removing CFBundleVisibleComponentName)..."
+    STOREUID_PLIST="$MOUNT_POINT/System/Library/PrivateFrameworks/CommerceKit.framework/Versions/A/Resources/storeuid.app/Contents/Info.plist"
+    if [ -f "$STOREUID_PLIST" ]; then
+        cp "$STOREUID_PLIST" /tmp/_storeuid_info_original.plist 2>/dev/null || true
+        if /usr/libexec/PlistBuddy -c "Print :CFBundleVisibleComponentName" "$STOREUID_PLIST" &>/dev/null; then
+            /usr/libexec/PlistBuddy -c "Delete :CFBundleVisibleComponentName" "$STOREUID_PLIST" \
+                && log "storeuid CFBundleVisibleComponentName deleted — App Store item will not appear in Apple menu" \
+                || warn "PlistBuddy delete failed on storeuid Info.plist (non-fatal)"
+        else
+            log "storeuid Info.plist: CFBundleVisibleComponentName already absent — skipping"
+        fi
     else
-        log "  No dynamic plist patches found in manifest"
+        warn "storeuid Info.plist not found at expected path — skipping"
     fi
 
     # [B5] Bless — MUST be last operation, MUST succeed

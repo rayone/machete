@@ -10,14 +10,15 @@ debloat-*.log
 cleanup-*.log
 optimizations-*.log
 uninstall-*.log
+disable-*.log
 
 # Runtime-generated restore artifacts (written by debloat.sh)
 snapshot-metadata.tsv
 debloat-*-RESTORE-CMD.txt
 restore-*.sh
 
-# Local development tools
-mcp.json
+# Backup files
+*.bak
 
 # Compiled membench binaries (build locally with membench/code/build.sh)
 membench/code/build/

@@ -2,7 +2,7 @@
 
 A macOS debloating and tuning toolkit for Apple Silicon, targeting macOS 26.x (Sequoia/Tahoe).
 
-Removes unwanted system binaries from the Sealed System Volume (SSV), disables background agents and daemons, applies 109 confirmed system-preference optimizations, and bundles a memory/CPU/GPU benchmark suite to measure before-and-after impact.
+Removes unwanted system binaries from the Sealed System Volume (SSV), disables background agents and daemons, applies 125 confirmed system-preference optimizations, disables 116 non-essential system services, and bundles a memory/CPU/GPU benchmark suite to measure before-and-after impact.
 
 ---
 
@@ -23,7 +23,8 @@ Removes unwanted system binaries from the Sealed System Volume (SSV), disables b
 |--------|---------|
 | `debloat.sh` | Main executor: removes SSV binaries, disables agents/daemons, cleans user data |
 | `manifest.yaml` | Declarative feature manifest: ~40 features with apps, frameworks, agents, daemons, plists, user containers |
-| `optimize.sh` | 109 `defaults write` / `sysctl` / `pmset` optimizations across 11 groups |
+| `optimize.sh` | 125 `defaults write` / `sysctl` / `pmset` optimizations across 11 groups |
+| `disable.sh` | 116 non-essential service disables across 11 groups: telemetry, Siri, iCloud, media, Apple Intelligence, App Store engagement, mail, social, gaming, MDM, and updates. Every item is reversible via `--restore` |
 | `cleanup.sh` | Post-debloat cleanup: Spotlight, LaunchServices, CoreSpotlight, icon cache |
 | `restore.sh` | Recovery Terminal script: lists snapshots, auto-detects volumes, restores boot target |
 | `uninstall.sh` | Removes all user-installed software: apps, Homebrew, pip, npm, kexts, agents |
@@ -48,7 +49,7 @@ Before running any script that modifies the SSV (`debloat.sh`):
 5. **Reboot** back to normal macOS
 6. Run scripts from the **live system** (except `restore.sh`, which runs from Recovery)
 
-`optimize.sh` and `uninstall.sh` do **not** require SIP/authenticated-root to be disabled and can be run on a stock system.
+`optimize.sh`, `disable.sh`, and `uninstall.sh` do **not** require SIP/authenticated-root to be disabled and can be run on a stock system.
 
 ---
 
@@ -74,7 +75,7 @@ sudo ./debloat.sh --yes
 
 ### Apply optimizations
 ```bash
-# List all 109 keys grouped by category
+# List all 125 keys grouped by category
 ./optimize.sh --list
 
 # Preview all
@@ -88,6 +89,27 @@ sudo ./optimize.sh --yes --item touchid_sudo,key_repeat_rate
 
 # Skip personal settings
 sudo ./optimize.sh --yes --skip timezone,computer_name,dock_strip,wallpaper_black
+```
+
+### Disable non-essential services
+```bash
+# List all 116 services with group and method
+./disable.sh --list
+
+# Preview all (no changes)
+./disable.sh --dry-run
+
+# Disable everything
+sudo ./disable.sh --yes
+
+# Disable a specific group
+sudo ./disable.sh --yes --group telemetry
+
+# Restore everything back to macOS defaults
+sudo ./disable.sh --yes --restore
+
+# Restore a specific group
+sudo ./disable.sh --yes --restore --group siri
 ```
 
 ### Post-debloat cleanup
@@ -147,7 +169,7 @@ Run `./optimize.sh --list` for the full annotated list. Groups:
 
 | Group | Items | Examples |
 |-------|-------|---------|
-| `input` | 4 | Key repeat fastest, press-and-hold off, Touch ID sudo |
+| `input` | 6 | Key repeat fastest, press-and-hold off, Touch ID sudo, sudo timeout |
 | `trackpad` | 8 | Max speed, tap-to-click, tap-to-drag, natural scroll off |
 | `spotlight` | 6 | Boot-volume-only indexing, Apps+Calculator+Settings categories |
 | `animations` | 7 | All window/scroll/motion animations disabled |
@@ -158,6 +180,27 @@ Run `./optimize.sh --list` for the full annotated list. Groups:
 | `network` | 7 | 16 MB socket buffer, 1 MB TCP send/recv, sysctl persist |
 | `updates` | 6 | Apple SU off, Chrome Keystone off, Edge updater off, AirDrop off |
 | `security` | 8 | ALF firewall+stealth, Gatekeeper off, pfctl telemetry block |
+| `chrome` | 10 | Memory Saver extreme, tab discard, battery saver, 1 GB disk cache |
+
+---
+
+## Service Disables
+
+Run `./disable.sh --list` for the full annotated list. Groups:
+
+| Group | Items | What is disabled |
+|-------|-------|-----------------|
+| `telemetry` | 20 | Analytics, Biome, diagnostics, crash reporting, cloud telemetry, geo analytics |
+| `siri` | 15 | Siri daemon stack, NLP, knowledge graph, TTS, suggestions, routine learning |
+| `icloud` | 10 | iCloud Drive, Photos, CloudKit, push notifications, account sync |
+| `media` | 10 | iTunes Cloud, AirPlay, AirDrop, Handoff, Continuity Camera, media remote |
+| `apple_intel` | 7 | Generative AI, Private Cloud Compute, model catalog, intelligence context |
+| `appstore` | 11 | Ad targeting, engagement tracking, A/B trials, commerce, promoted content |
+| `mail` | 9 | Mail, Calendar, Contacts, Reminders, iMessage, FaceTime background daemons |
+| `social` | 17 | Maps sync, Weather, Stocks, HomeKit, Find My, photo analysis, social layer |
+| `gaming` | 4 | Game controllers, Game Mode, game policy |
+| `mdm` | 5 | Remote Management daemon and all subscriber services |
+| `updates` | 8 | Software Update auto-check/download, asset subscriptions, model prefetch |
 
 ---
 
