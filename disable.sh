@@ -426,38 +426,40 @@ _db_flush() {
     local GUI_DB="/var/db/com.apple.xpc.launchd/disabled.${REAL_UID}.plist"
     local SYS_DB="/var/db/com.apple.xpc.launchd/disabled.plist"
 
-    if [ ${#_DB_DISABLE_QUEUE[@]} -eq 0 ] && [ ${#_DB_ENABLE_QUEUE[@]} -eq 0 ]; then
+    local ndis=${#_DB_DISABLE_QUEUE[@]+"${#_DB_DISABLE_QUEUE[@]}"}; ndis=${ndis:-0}
+    local nena=${#_DB_ENABLE_QUEUE[@]+"${#_DB_ENABLE_QUEUE[@]}"}; nena=${nena:-0}
+
+    if [ "$ndis" -eq 0 ] && [ "$nena" -eq 0 ]; then
         return 0
     fi
 
-    log "Flushing disable database (${#_DB_DISABLE_QUEUE[@]} disable, ${#_DB_ENABLE_QUEUE[@]} restore)..."
+    log "Flushing disable database ($ndis disable, $nena restore)..."
 
     # Build PlistBuddy command batches — one invocation per db file
     local gui_cmds=() sys_cmds=()
 
-    for entry in "${_DB_DISABLE_QUEUE[@]}"; do
+    for entry in "${_DB_DISABLE_QUEUE[@]+"${_DB_DISABLE_QUEUE[@]}"}"; do
         local dt="${entry%%:*}" label="${entry#*:}"
         local cmd="Add :${label} bool true"
         [ "$dt" = "gui" ] && gui_cmds+=(-c "$cmd") || sys_cmds+=(-c "$cmd")
     done
-    for entry in "${_DB_ENABLE_QUEUE[@]}"; do
+    for entry in "${_DB_ENABLE_QUEUE[@]+"${_DB_ENABLE_QUEUE[@]}"}"; do
         local dt="${entry%%:*}" label="${entry#*:}"
         local cmd="Delete :${label}"
         [ "$dt" = "gui" ] && gui_cmds+=(-c "$cmd") || sys_cmds+=(-c "$cmd")
     done
 
     # Write gui db — PlistBuddy will error on duplicate Add; use Set as fallback
-    # by running Add for all, then a second pass with Set for any that already exist.
     if [ ${#gui_cmds[@]} -gt 0 ]; then
         /usr/libexec/PlistBuddy "${gui_cmds[@]}" "$GUI_DB" 2>/dev/null || {
             # Fallback: write each entry individually with Add-or-Set
-            for entry in "${_DB_DISABLE_QUEUE[@]}"; do
+            for entry in "${_DB_DISABLE_QUEUE[@]+"${_DB_DISABLE_QUEUE[@]}"}"; do
                 local dt="${entry%%:*}" label="${entry#*:}"
                 [ "$dt" != "gui" ] && continue
                 /usr/libexec/PlistBuddy -c "Add :${label} bool true" "$GUI_DB" 2>/dev/null || \
                 /usr/libexec/PlistBuddy -c "Set :${label} true"       "$GUI_DB" 2>/dev/null || true
             done
-            for entry in "${_DB_ENABLE_QUEUE[@]}"; do
+            for entry in "${_DB_ENABLE_QUEUE[@]+"${_DB_ENABLE_QUEUE[@]}"}"; do
                 local dt="${entry%%:*}" label="${entry#*:}"
                 [ "$dt" != "gui" ] && continue
                 /usr/libexec/PlistBuddy -c "Delete :${label}" "$GUI_DB" 2>/dev/null || true
@@ -469,13 +471,13 @@ _db_flush() {
     # Write system db
     if [ ${#sys_cmds[@]} -gt 0 ]; then
         /usr/libexec/PlistBuddy "${sys_cmds[@]}" "$SYS_DB" 2>/dev/null || {
-            for entry in "${_DB_DISABLE_QUEUE[@]}"; do
+            for entry in "${_DB_DISABLE_QUEUE[@]+"${_DB_DISABLE_QUEUE[@]}"}"; do
                 local dt="${entry%%:*}" label="${entry#*:}"
                 [ "$dt" != "system" ] && continue
                 /usr/libexec/PlistBuddy -c "Add :${label} bool true" "$SYS_DB" 2>/dev/null || \
                 /usr/libexec/PlistBuddy -c "Set :${label} true"       "$SYS_DB" 2>/dev/null || true
             done
-            for entry in "${_DB_ENABLE_QUEUE[@]}"; do
+            for entry in "${_DB_ENABLE_QUEUE[@]+"${_DB_ENABLE_QUEUE[@]}"}"; do
                 local dt="${entry%%:*}" label="${entry#*:}"
                 [ "$dt" != "system" ] && continue
                 /usr/libexec/PlistBuddy -c "Delete :${label}" "$SYS_DB" 2>/dev/null || true
