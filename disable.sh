@@ -150,7 +150,11 @@ DISABLE_LIST=(
     "tailspind|telemetry|launchctl|tailspind — Tailspin daemon; records a continuous circular buffer of CPU, disk, and memory events used for performance telemetry and crash triage. High background I/O on a dev machine. Disable: launchctl bootout. Restore: bootstrap. Impact: Performance event buffer not maintained; reduces background disk writes."
     "rtcreportingd|telemetry|launchctl|rtcreportingd — Real-time communications reporting daemon; submits FaceTime and CallKit call-quality metrics to Apple. Disable: launchctl bootout. Restore: bootstrap. Impact: Call quality metrics not reported (no FaceTime on this machine anyway)."
     "PerfPowerTelemetry|telemetry|launchctl|PerfPowerTelemetryClientRegistrationService — Registers apps with Apple's power and performance telemetry framework so their CPU/GPU/power data is included in aggregate reports. Disable: launchctl bootout. Restore: bootstrap. Impact: This machine's power consumption data excluded from Apple telemetry."
-    "CloudTelemetryService|telemetry|launchctl|CloudTelemetryService — Uploads telemetry events to Apple's cloud telemetry pipeline. 4 instances observed running simultaneously. Disable: launchctl bootout all instances. Restore: bootstrap. Impact: Cloud telemetry submissions stopped entirely."
+    "CloudTelemetryService|telemetry|launchctl|CloudTelemetryService — Uploads telemetry events to Apple's cloud telemetry pipeline. 4 instances observed running simultaneously. Disable: db write + bootout. Restore: db remove. Impact: Cloud telemetry submissions stopped entirely."
+    "spotlightknowledged_importer|telemetry|launchctl|spotlightknowledged.importer — Imports knowledge data into Spotlight's knowledge graph for Siri Suggestions and contextual search. Runs after Spotlight indexing bursts. Disable: db write + bootout. Restore: db remove. Impact: Knowledge graph not updated; Spotlight suggestions less personalised."
+    "spotlightknowledged_updater|telemetry|launchctl|spotlightknowledged.updater — Periodically updates the Spotlight knowledge graph with fresh signals from app usage and file access patterns. Disable: db write + bootout. Restore: db remove. Impact: Knowledge graph updates stop."
+    "knowledge_agent|telemetry|launchctl|knowledge-agent — Manages the on-device knowledge store used by Siri Suggestions, Spotlight contextual results, and proactive intelligence features. Disable: db write + bootout. Restore: db remove. Impact: Knowledge store not updated; proactive suggestions not personalised."
+    "knowledgeconstructiond|telemetry|launchctl|knowledgeconstructiond — Constructs structured knowledge from unstructured signals (emails, messages, calendar events) to build the Siri/Spotlight knowledge graph. New in macOS 26. Disable: db write + bootout. Restore: db remove. Impact: Knowledge construction pipeline stops."
     "analyticsagent_defaults|telemetry|defaults|AutomaticCheckEnabled=false in com.apple.SubmitDiagInfo — Preference that gates whether the diagnostics submission UI offers to send data to Apple. Disable: defaults write false. Restore: defaults write true. Impact: Diagnostic submission prompt suppressed at the preference layer in addition to the daemon-level disable."
     "diag_autosend|telemetry|defaults|AutoSubmit=false in com.apple.SubmitDiagInfo — Controls whether crash/diagnostic reports are automatically submitted to Apple without user confirmation. Disable: defaults write false. Restore: defaults delete (macOS default is unset = no auto-submit). Impact: Ensures no crash data is silently uploaded even if the daemon restarts."
     # ── siri ─────────────────────────────────────────────────────────────────
@@ -167,6 +171,13 @@ DISABLE_LIST=(
     "routined|siri|launchctl|routined — Learns your daily routine (wake time, commute, regular locations) to power Siri time- and location-based suggestions. Disable: launchctl bootout. Restore: bootstrap. Impact: Routine learning stopped; no location-triggered Siri prompts."
     "duetexpertd|siri|launchctl|duetexpertd — Duet Activity Scheduler expert daemon; runs ML models that predict when you will next use each app to pre-warm them. Disable: launchctl bootout. Restore: bootstrap. Impact: App pre-warming ML stopped; minor cold-launch time increase for rarely used apps."
     "ospredictiond|siri|launchctl|ospredictiond — OS-level prediction daemon; predicts which resources (files, network endpoints) will be needed and prefetches them. Disable: launchctl bootout. Restore: bootstrap. Impact: Prefetch predictions not generated; no measurable latency impact on a dev machine with fast NVMe."
+    "siriactionsd|siri|launchctl|siriactionsd (VoiceShortcuts) — Manages Siri Shortcuts: stores shortcut definitions, handles shortcut invocation, and syncs shortcuts via iCloud. Disable: db write + bootout. Restore: db remove. Impact: Siri Shortcuts not available; Hey Siri shortcut phrases not invokable."
+    "followupd|siri|launchctl|followupd — Follow Up daemon; surfaces contextual follow-up suggestions based on messages, emails, and calendar events (e.g. 'Reply to this message'). Disable: db write + bootout. Restore: db remove. Impact: Follow Up suggestions not shown in Spotlight or Lock Screen."
+    "liveactivitiesd|siri|launchctl|liveactivitiesd — Live Activities daemon; manages Dynamic Island and Lock Screen live activity updates for apps that use the ActivityKit framework. Disable: db write + bootout. Restore: db remove. Impact: Live Activities not updated; Dynamic Island widgets static."
+    "statusKitAgent|siri|launchctl|StatusKitAgent — Syncs Focus status and availability indicators across Apple devices via iCloud. Disable: db write + bootout. Restore: db remove. Impact: Focus status not shared across devices."
+    "AppSSOAgent|siri|launchctl|AppSSOAgent — App Single Sign-On agent; manages enterprise SSO extensions that allow apps to authenticate via a corporate identity provider without entering credentials each time. Disable: db write + bootout. Restore: db remove. Impact: Enterprise SSO extensions not active; apps fall back to individual credential prompts. Safe to disable if no corporate SSO is configured."
+    "AppSSODaemon|siri|launchctl|AppSSODaemon — System-domain counterpart to AppSSOAgent; handles privileged portions of the SSO extension protocol. Disable: db write + bootout system. Restore: db remove system. Impact: SSO daemon not running; pairs with AppSSOAgent disable."
+    "protectedcloudkeysyncing|icloud|launchctl|ProtectedCloudKeySyncing — Syncs end-to-end encrypted iCloud Keychain items (passwords, credit cards, Wi-Fi passwords) to other Apple devices via the protected cloud storage channel. Disable: db write + bootout. Restore: db remove. Impact: iCloud Keychain sync stops; local keychain items remain intact."
     "siri_disabled|siri|defaults|Siri disabled in com.apple.assistant.support — Master preference key that disables the Siri feature at the application layer. Disable: defaults write SiriEnabled=false. Restore: defaults write SiriEnabled=true. Impact: Siri toggle shown as off in System Settings; Siri shortcut unregistered."
     "siri_voice_feedback|siri|defaults|VoiceTriggerUserEnabled=false in com.apple.Siri — Disables the 'Hey Siri' always-on microphone wake-word listener. Disable: defaults write false. Restore: defaults delete. Impact: Microphone not polled continuously for wake word."
     # ── icloud ───────────────────────────────────────────────────────────────
@@ -194,7 +205,7 @@ DISABLE_LIST=(
     # ── apple_intel ──────────────────────────────────────────────────────────
     "generativeexperiencesd|apple_intel|launchctl|generativeexperiencesd — Apple Intelligence generative experiences runtime; manages Writing Tools, image generation, and other generative AI features introduced in macOS 15. Disable: launchctl bootout. Restore: bootstrap. Impact: Apple Intelligence generative features unavailable."
     "intelligencecontextd|apple_intel|launchctl|intelligencecontextd — Intelligence Flow Context daemon; gathers on-device context (open documents, current app, recent actions) to supply to Apple Intelligence models for personalised responses. Disable: launchctl bootout. Restore: bootstrap. Impact: Apple Intelligence has no contextual awareness."
-    "IntelligencePlatformComputeService|apple_intel|launchctl|IntelligencePlatformComputeService — XPC service that dispatches Apple Intelligence inference requests to the appropriate compute resource (Neural Engine, GPU, or Private Cloud). Disable: launchctl bootout. Restore: bootstrap. Impact: Apple Intelligence on-device inference stopped."
+    "IntelligencePlatformComputeService|apple_intel|launchctl|intelligenceplatformd + intelligencetasksd — Apple Intelligence platform daemon and tasks engine; dispatches inference requests to Neural Engine/GPU and manages the task queue for Writing Tools, summaries, and generative features. Disable: db write + bootout both labels. Restore: db remove. Impact: Apple Intelligence on-device inference stopped."
     "privatecloudcomputed|apple_intel|launchctl|privatecloudcomputed — Private Cloud Compute daemon; routes Apple Intelligence requests that exceed on-device capability to Apple's privacy-preserving cloud inference servers. Disable: launchctl bootout. Restore: bootstrap. Impact: Cloud AI inference requests not sent; no data leaves the device via this path."
     "ModelCatalogAgent|apple_intel|launchctl|ModelCatalogAgent — User-domain agent that checks for updated Apple Intelligence model packages and downloads them from Apple's CDN in the background. Disable: launchctl bootout. Restore: bootstrap. Impact: Apple Intelligence model updates not downloaded."
     "modelcatalogd|apple_intel|launchctl|modelcatalogd — System daemon that manages the on-disk catalogue of installed Apple Intelligence model bundles and their metadata. Disable: launchctl bootout. Restore: bootstrap. Impact: Model catalogue not maintained; pairs with ModelCatalogAgent disable."
@@ -243,6 +254,7 @@ DISABLE_LIST=(
     "gamecontrolleragentd|gaming|launchctl|gamecontrolleragentd — User-domain game controller agent; monitors for connected game controllers and publishes them to the GCController framework. Disable: launchctl bootout. Restore: bootstrap. Impact: Game controllers not discovered by apps using GameController framework."
     "gamecontrollerd|gaming|launchctl|gamecontrollerd — System-domain game controller daemon; handles HID-level controller input routing. Disable: launchctl bootout system. Restore: bootstrap system. Impact: Game controller input not routed to apps."
     "gamepolicyd|gaming|launchctl|gamepolicyd — Manages Game Mode policy; determines when a game is the primary focus and applies CPU/GPU priority boosts. Disable: launchctl bootout system. Restore: bootstrap system. Impact: Game Mode not activated for any app."
+    "GamePolicyAgent|gaming|launchctl|GamePolicyAgent — User-domain counterpart to gamepolicyd; communicates Game Mode status to apps via the GKGameCenterViewController API. Disable: db write + bootout. Restore: db remove. Impact: Game Mode UI not shown to apps."
     "GameController_agent|gaming|launchctl|GameController_agent — Duplicate GameController agent label (com.apple.GameController.gamecontrolleragentd). Covers both label variants present on macOS 26. Disable: launchctl bootout. Restore: bootstrap. Impact: Controller discovery stops."
     # ── mdm ──────────────────────────────────────────────────────────────────
     "remotemanagementd|mdm|launchctl|remotemanagementd — Remote Management daemon; implements the MDM protocol, receives management commands from an MDM server, and applies configuration profiles. Disable: launchctl bootout system. Restore: bootstrap system. Impact: MDM commands not received or processed. Only disable if this machine is not enrolled in MDM."
@@ -394,37 +406,127 @@ _dry_item() {
 # Core helpers
 # ---------------------------------------------------------------------------
 
-# _lctl KEY DOMAIN_TYPE LABEL [DISABLE_CURRENT_VAL] [MAC_DEFAULT_VAL] [DESC]
-#   DOMAIN_TYPE: "gui" (per-user) | "system" (root LaunchDaemon)
-#   Calls _confirm_item, then bootout or bootstrap the service.
-#   For "gui" domain the full label path is gui/$REAL_UID/LABEL
-#   For "system" domain the full label path is system/LABEL
-_lctl() {
-    local key="$1" domain_type="$2" label="$3"
-    local current_val="${4:-running}" mac_default="${5:-enabled (macOS default)}" disabled_val="${6:-stopped + disabled}"
+# In-memory accumulators for disable database writes.
+# We collect all labels during the run and flush once at the end,
+# rather than calling PlistBuddy once per label (which caused 200+ sudo prompts).
+# Format: "domain_type:label"  e.g. "gui:com.apple.assistantd"
+_DB_DISABLE_QUEUE=()
+_DB_ENABLE_QUEUE=()
 
-    local domain_path
-    if [ "$domain_type" = "gui" ]; then
-        domain_path="gui/$REAL_UID"
-    else
-        domain_path="system"
+# _db_queue_disable DOMAIN_TYPE LABEL  — queue for bulk write at flush time
+_db_queue_disable() { _DB_DISABLE_QUEUE+=("$1:$2"); }
+
+# _db_queue_enable DOMAIN_TYPE LABEL  — queue for bulk delete at flush time
+_db_queue_enable()  { _DB_ENABLE_QUEUE+=("$1:$2"); }
+
+# _db_flush — called once after all items are processed.
+# Reads both db plists once, applies all queued changes, writes back once each.
+# The script already runs as root (sudo ./disable.sh) so no extra sudo prompts.
+_db_flush() {
+    local GUI_DB="/var/db/com.apple.xpc.launchd/disabled.${REAL_UID}.plist"
+    local SYS_DB="/var/db/com.apple.xpc.launchd/disabled.plist"
+
+    if [ ${#_DB_DISABLE_QUEUE[@]} -eq 0 ] && [ ${#_DB_ENABLE_QUEUE[@]} -eq 0 ]; then
+        return 0
     fi
 
-    # Detect current state — handle both legacy tabular and macOS 26 JSON output from launchctl
+    log "Flushing disable database (${#_DB_DISABLE_QUEUE[@]} disable, ${#_DB_ENABLE_QUEUE[@]} restore)..."
+
+    # Build PlistBuddy command batches — one invocation per db file
+    local gui_cmds=() sys_cmds=()
+
+    for entry in "${_DB_DISABLE_QUEUE[@]}"; do
+        local dt="${entry%%:*}" label="${entry#*:}"
+        local cmd="Add :${label} bool true"
+        [ "$dt" = "gui" ] && gui_cmds+=(-c "$cmd") || sys_cmds+=(-c "$cmd")
+    done
+    for entry in "${_DB_ENABLE_QUEUE[@]}"; do
+        local dt="${entry%%:*}" label="${entry#*:}"
+        local cmd="Delete :${label}"
+        [ "$dt" = "gui" ] && gui_cmds+=(-c "$cmd") || sys_cmds+=(-c "$cmd")
+    done
+
+    # Write gui db — PlistBuddy will error on duplicate Add; use Set as fallback
+    # by running Add for all, then a second pass with Set for any that already exist.
+    if [ ${#gui_cmds[@]} -gt 0 ]; then
+        /usr/libexec/PlistBuddy "${gui_cmds[@]}" "$GUI_DB" 2>/dev/null || {
+            # Fallback: write each entry individually with Add-or-Set
+            for entry in "${_DB_DISABLE_QUEUE[@]}"; do
+                local dt="${entry%%:*}" label="${entry#*:}"
+                [ "$dt" != "gui" ] && continue
+                /usr/libexec/PlistBuddy -c "Add :${label} bool true" "$GUI_DB" 2>/dev/null || \
+                /usr/libexec/PlistBuddy -c "Set :${label} true"       "$GUI_DB" 2>/dev/null || true
+            done
+            for entry in "${_DB_ENABLE_QUEUE[@]}"; do
+                local dt="${entry%%:*}" label="${entry#*:}"
+                [ "$dt" != "gui" ] && continue
+                /usr/libexec/PlistBuddy -c "Delete :${label}" "$GUI_DB" 2>/dev/null || true
+            done
+        }
+        ok "gui disable db updated ($GUI_DB)"
+    fi
+
+    # Write system db
+    if [ ${#sys_cmds[@]} -gt 0 ]; then
+        /usr/libexec/PlistBuddy "${sys_cmds[@]}" "$SYS_DB" 2>/dev/null || {
+            for entry in "${_DB_DISABLE_QUEUE[@]}"; do
+                local dt="${entry%%:*}" label="${entry#*:}"
+                [ "$dt" != "system" ] && continue
+                /usr/libexec/PlistBuddy -c "Add :${label} bool true" "$SYS_DB" 2>/dev/null || \
+                /usr/libexec/PlistBuddy -c "Set :${label} true"       "$SYS_DB" 2>/dev/null || true
+            done
+            for entry in "${_DB_ENABLE_QUEUE[@]}"; do
+                local dt="${entry%%:*}" label="${entry#*:}"
+                [ "$dt" != "system" ] && continue
+                /usr/libexec/PlistBuddy -c "Delete :${label}" "$SYS_DB" 2>/dev/null || true
+            done
+        }
+        ok "system disable db updated ($SYS_DB)"
+    fi
+}
+
+# _db_check_disabled DOMAIN_TYPE LABEL — returns "true" or "" using cached db reads
+# Cache is populated once on first call per db file to avoid repeated file reads.
+_GUI_DB_CACHE=""
+_SYS_DB_CACHE=""
+_db_check_disabled() {
+    local domain_type="$1" label="$2"
+    if [ "$domain_type" = "gui" ]; then
+        [ -z "$_GUI_DB_CACHE" ] && \
+            _GUI_DB_CACHE=$(plutil -p "/var/db/com.apple.xpc.launchd/disabled.${REAL_UID}.plist" 2>/dev/null || echo "")
+        echo "$_GUI_DB_CACHE" | grep -q "\"${label}\" => 1" && echo "true" || echo ""
+    else
+        [ -z "$_SYS_DB_CACHE" ] && \
+            _SYS_DB_CACHE=$(plutil -p "/var/db/com.apple.xpc.launchd/disabled.plist" 2>/dev/null || echo "")
+        echo "$_SYS_DB_CACHE" | grep -q "\"${label}\" => 1" && echo "true" || echo ""
+    fi
+}
+
+# _lctl KEY DOMAIN_TYPE LABEL
+#   DOMAIN_TYPE: "gui" (per-user) | "system" (root LaunchDaemon)
+#   disable branch:
+#     1. Queue label into in-memory disable db (flushed once at end of run)
+#     2. launchctl bootout to stop any currently running instance immediately
+#   restore branch:
+#     1. Queue label removal from disable db
+#     2. launchctl enable + bootstrap to restart now
+_lctl() {
+    local key="$1" domain_type="$2" label="$3"
+    local mac_default="enabled (macOS default)" disabled_val="stopped + disabled"
+
+    local domain_path
+    [ "$domain_type" = "gui" ] && domain_path="gui/$REAL_UID" || domain_path="system"
+
+    # Detect current state — handle both legacy tabular and macOS 26 JSON output
     local current
     if launchctl list "$label" > /dev/null 2>&1; then
         local _raw; _raw=$(launchctl list "$label" 2>/dev/null)
-        # JSON format (macOS 26+): extract "PID" : 1234
         local _pid; _pid=$(echo "$_raw" | grep -o '"PID"[[:space:]]*:[[:space:]]*[0-9]*' | grep -o '[0-9]*$')
-        # Legacy tabular: first column is PID (a number) or - (not running)
         [ -z "$_pid" ] && _pid=$(echo "$_raw" | awk 'NR==1 && $1 ~ /^[0-9]+$/ {print $1}')
-        if [ -n "$_pid" ] && [ "$_pid" != "-" ]; then
-            current="running (PID $_pid)"
-        else
-            current="loaded (not running)"
-        fi
+        [ -n "$_pid" ] && [ "$_pid" != "-" ] && current="running (PID $_pid)" || current="loaded (not running)"
     else
-        current="not loaded"
+        local _in_db; _in_db=$(_db_check_disabled "$domain_type" "$label")
+        [ "$_in_db" = "true" ] && current="already disabled (db)" || current="not loaded"
     fi
 
     [ "$DRY_RUN" = true ] && { _dry_item "$_ITEM_NUM" "$key" "launchctl" "$current" "$mac_default" "$disabled_val"; return; }
@@ -432,17 +534,19 @@ _lctl() {
 
     case "$ACTION" in
         disable)
+            _db_queue_disable "$domain_type" "$label"
             launchctl bootout "$domain_path/$label" 2>/dev/null || true
-            launchctl disable "$domain_path/$label"  2>/dev/null || true
-            ok "$key — service stopped and disabled ($domain_path/$label)"
+            ok "$key — queued for db disable + bootout ($label)"
             ;;
         restore)
-            launchctl enable  "$domain_path/$label"  2>/dev/null || true
-            launchctl bootstrap "$domain_path" \
-                "$(find /System/Library/LaunchAgents /System/Library/LaunchDaemons \
-                        "$REAL_HOME/Library/LaunchAgents" /Library/LaunchAgents /Library/LaunchDaemons \
-                   -name "${label}.plist" 2>/dev/null | head -1)" 2>/dev/null || true
-            ok "$key — service re-enabled ($domain_path/$label)"
+            _db_queue_enable "$domain_type" "$label"
+            launchctl enable "$domain_path/$label" 2>/dev/null || true
+            local _plist
+            _plist=$(find /System/Library/LaunchAgents /System/Library/LaunchDaemons \
+                         /Library/LaunchAgents /Library/LaunchDaemons \
+                    -name "${label}.plist" 2>/dev/null | head -1)
+            [ -n "$_plist" ] && launchctl bootstrap "$domain_path" "$_plist" 2>/dev/null || true
+            ok "$key — queued for db restore + bootstrap ($label)"
             ;;
         skip) log "$key — skipped" ;;
     esac
@@ -582,8 +686,24 @@ apply_rtcreportingd() {
 }
 
 apply_PerfPowerTelemetry() {
-    _lctl "PerfPowerTelemetry" "gui" \
-        "com.apple.powerlog.PerfPowerTelemetryClientRegistrationService"
+    _lctl "PerfPowerTelemetry" "system" \
+        "com.apple.PerfPowerTelemetryClientRegistrationService"
+}
+
+apply_spotlightknowledged_importer() {
+    _lctl "spotlightknowledged_importer" "gui" "com.apple.spotlightknowledged.importer"
+}
+
+apply_spotlightknowledged_updater() {
+    _lctl "spotlightknowledged_updater" "gui" "com.apple.spotlightknowledged.updater"
+}
+
+apply_knowledge_agent() {
+    _lctl "knowledge_agent" "gui" "com.apple.knowledge-agent"
+}
+
+apply_knowledgeconstructiond() {
+    _lctl "knowledgeconstructiond" "gui" "com.apple.knowledgeconstructiond"
 }
 
 apply_CloudTelemetryService() {
@@ -674,6 +794,30 @@ apply_ospredictiond() {
     _lctl "ospredictiond" "system" "com.apple.ospredictiond"
 }
 
+apply_siriactionsd() {
+    _lctl "siriactionsd" "gui" "com.apple.siriactionsd"
+}
+
+apply_followupd() {
+    _lctl "followupd" "gui" "com.apple.followupd"
+}
+
+apply_liveactivitiesd() {
+    _lctl "liveactivitiesd" "gui" "com.apple.liveactivitiesd"
+}
+
+apply_statusKitAgent() {
+    _lctl "statusKitAgent" "gui" "com.apple.StatusKitAgent"
+}
+
+apply_AppSSOAgent() {
+    _lctl "AppSSOAgent" "gui" "com.apple.AppSSOAgent"
+}
+
+apply_AppSSODaemon() {
+    _lctl "AppSSODaemon" "system" "com.apple.AppSSO.AppSSODaemon"
+}
+
 apply_siri_disabled() {
     _dfw_disable "siri_disabled" \
         "com.apple.assistant.support" "SiriEnabled" "-bool" "true" "false"
@@ -720,6 +864,11 @@ apply_accountsd() {
 
 apply_appleaccountd() {
     _lctl "appleaccountd" "gui" "com.apple.appleaccountd"
+}
+
+apply_protectedcloudkeysyncing() {
+    _lctl "protectedcloudkeysyncing" "gui" \
+        "com.apple.protectedcloudstorage.protectedcloudkeysyncing"
 }
 
 apply_icloud_drive_defaults() {
@@ -801,11 +950,10 @@ apply_intelligencecontextd() {
 }
 
 apply_IntelligencePlatformComputeService() {
-    # macOS 26 uses intelligenceplatformd as the primary label
+    # macOS 26: intelligenceplatformd is the main label; intelligencetasksd is the task engine
     _lctl "IntelligencePlatformComputeService" "gui" "com.apple.intelligenceplatformd"
-    # Also stop the tasks service
     launchctl bootout  "gui/$REAL_UID/com.apple.intelligencetasksd" 2>/dev/null || true
-    launchctl disable  "gui/$REAL_UID/com.apple.intelligencetasksd" 2>/dev/null || true
+    _db_queue_disable "gui" "com.apple.intelligencetasksd"
 }
 
 apply_privatecloudcomputed() {
@@ -1003,8 +1151,12 @@ apply_gamepolicyd() {
 apply_GameController_agent() {
     # Alias — same label as gamecontrolleragentd; skip if already handled
     launchctl bootout  "gui/$REAL_UID/com.apple.GameController.gamecontrolleragentd" 2>/dev/null || true
-    launchctl disable  "gui/$REAL_UID/com.apple.GameController.gamecontrolleragentd" 2>/dev/null || true
+    _db_queue_disable "gui" "com.apple.GameController.gamecontrolleragentd"
     ok "GameController_agent — gui label ensured disabled"
+}
+
+apply_GamePolicyAgent() {
+    _lctl "GamePolicyAgent" "gui" "com.apple.GamePolicyAgent"
 }
 
 # ── MDM ─────────────────────────────────────────────────────────────────────
@@ -1143,6 +1295,14 @@ for entry in "${WORK_LIST[@]}"; do
         esac
     fi
 done
+
+# ---------------------------------------------------------------------------
+# Flush disable database — single write for all queued label changes
+# ---------------------------------------------------------------------------
+if [ "$DRY_RUN" = false ] && [ "$APPLIED" -gt 0 ]; then
+    echo ""
+    _db_flush
+fi
 
 # ---------------------------------------------------------------------------
 # Summary
