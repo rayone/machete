@@ -153,6 +153,9 @@ DISABLE_LIST=(
     "CloudTelemetryService|telemetry|launchctl|CloudTelemetryService — Uploads telemetry events to Apple's cloud telemetry pipeline. 4 instances observed running simultaneously. Disable: db write + bootout. Restore: db remove. Impact: Cloud telemetry submissions stopped entirely."
     "spotlightknowledged_importer|telemetry|launchctl|spotlightknowledged.importer — Imports knowledge data into Spotlight's knowledge graph for Siri Suggestions and contextual search. Runs after Spotlight indexing bursts. Disable: db write + bootout. Restore: db remove. Impact: Knowledge graph not updated; Spotlight suggestions less personalised."
     "spotlightknowledged_updater|telemetry|launchctl|spotlightknowledged.updater — Periodically updates the Spotlight knowledge graph with fresh signals from app usage and file access patterns. Disable: db write + bootout. Restore: db remove. Impact: Knowledge graph updates stop."
+    "spotlightknowledged|telemetry|launchctl|spotlightknowledged — Core Spotlight knowledge graph daemon; maintains the structured knowledge store used by Siri Suggestions and contextual search results. Disable: db write + bootout. Restore: db remove. Impact: Spotlight knowledge graph not maintained."
+    "coreduetd|telemetry|launchctl|coreduetd — Core Duet system daemon; coordinates the Duet Activity Scheduler, collecting signals from all apps to build the on-device intelligence model. The root-level counterpart to duetexpertd. Disable: db write + bootout system. Restore: db remove. Impact: Core intelligence scheduling pipeline stops."
+    "contextstored|telemetry|launchctl|contextstored — Stores contextual events (app launches, document opens, location visits) in the Core Duet context store, feeding Siri Suggestions and proactive intelligence. Disable: db write + bootout system. Restore: db remove. Impact: Context event storage stops; proactive suggestions lose historical signal."
     "knowledge_agent|telemetry|launchctl|knowledge-agent — Manages the on-device knowledge store used by Siri Suggestions, Spotlight contextual results, and proactive intelligence features. Disable: db write + bootout. Restore: db remove. Impact: Knowledge store not updated; proactive suggestions not personalised."
     "knowledgeconstructiond|telemetry|launchctl|knowledgeconstructiond — Constructs structured knowledge from unstructured signals (emails, messages, calendar events) to build the Siri/Spotlight knowledge graph. New in macOS 26. Disable: db write + bootout. Restore: db remove. Impact: Knowledge construction pipeline stops."
     "analyticsagent_defaults|telemetry|defaults|AutomaticCheckEnabled=false in com.apple.SubmitDiagInfo — Preference that gates whether the diagnostics submission UI offers to send data to Apple. Disable: defaults write false. Restore: defaults write true. Impact: Diagnostic submission prompt suppressed at the preference layer in addition to the daemon-level disable."
@@ -178,6 +181,7 @@ DISABLE_LIST=(
     "AppSSOAgent|siri|launchctl|AppSSOAgent — App Single Sign-On agent; manages enterprise SSO extensions that allow apps to authenticate via a corporate identity provider without entering credentials each time. Disable: db write + bootout. Restore: db remove. Impact: Enterprise SSO extensions not active; apps fall back to individual credential prompts. Safe to disable if no corporate SSO is configured."
     "AppSSODaemon|siri|launchctl|AppSSODaemon — System-domain counterpart to AppSSOAgent; handles privileged portions of the SSO extension protocol. Disable: db write + bootout system. Restore: db remove system. Impact: SSO daemon not running; pairs with AppSSOAgent disable."
     "protectedcloudkeysyncing|icloud|launchctl|ProtectedCloudKeySyncing — Syncs end-to-end encrypted iCloud Keychain items (passwords, credit cards, Wi-Fi passwords) to other Apple devices via the protected cloud storage channel. Disable: db write + bootout. Restore: db remove. Impact: iCloud Keychain sync stops; local keychain items remain intact."
+    "voicebankingd|siri|launchctl|voicebankingd — Personal Voice banking daemon; records and processes voice samples to create a synthetic personal voice for accessibility. Disable: db write + bootout. Restore: db remove. Impact: Personal Voice feature unavailable."
     "siri_disabled|siri|defaults|Siri disabled in com.apple.assistant.support — Master preference key that disables the Siri feature at the application layer. Disable: defaults write SiriEnabled=false. Restore: defaults write SiriEnabled=true. Impact: Siri toggle shown as off in System Settings; Siri shortcut unregistered."
     "siri_voice_feedback|siri|defaults|VoiceTriggerUserEnabled=false in com.apple.Siri — Disables the 'Hey Siri' always-on microphone wake-word listener. Disable: defaults write false. Restore: defaults delete. Impact: Microphone not polled continuously for wake word."
     # ── icloud ───────────────────────────────────────────────────────────────
@@ -186,7 +190,8 @@ DISABLE_LIST=(
     "cloudphotod|icloud|launchctl|cloudphotod — iCloud Photos daemon; uploads new photos and downloads iCloud Photo Library changes. Disable: launchctl bootout. Restore: bootstrap. Impact: iCloud Photos sync stops."
     "cloudsettingssyncagent|icloud|launchctl|cloudsettingssyncagent — Syncs System Settings preferences (wallpaper, accessibility, keyboard shortcuts) to iCloud so they replicate to other Apple devices. Disable: launchctl bootout. Restore: bootstrap. Impact: Preference changes stay local only."
     "iCloudNotificationAgent|icloud|launchctl|iCloudNotificationAgent — Receives push notifications from iCloud services (Drive changes, shared album updates, etc.). Disable: launchctl bootout. Restore: bootstrap. Impact: iCloud push notifications not delivered."
-    "syncdefaultsd|icloud|launchctl|syncdefaultsd — Syncs NSUserDefaults preference keys flagged for iCloud sync by apps that use the iCloud key-value store API. Disable: launchctl bootout. Restore: bootstrap. Impact: App preference sync via iCloud KV store stops."
+    "syncdefaultsd|icloud|launchctl|syncdefaultsd — Syncs NSUserDefaults preference keys flagged for iCloud sync by apps. Disable: db write + bootout. Restore: db remove. Impact: App preference sync via iCloud KV store stops."
+    "FeatureAccessAgent|icloud|launchctl|FeatureAccessAgent (CloudSubscriptionFeatures) — Manages feature entitlement checks for iCloud subscription features (iCloud+, Private Relay, Hide My Email). Runs continuously to verify subscription state. Disable: db write + bootout. Restore: db remove. Impact: iCloud+ feature availability not checked in background."
     "cmfsyncagent|icloud|launchctl|cmfsyncagent — Communications Filter Sync agent; syncs call and message filter rules (spam filters) via iCloud across devices. Disable: launchctl bootout. Restore: bootstrap. Impact: Cross-device message filter rules not synced."
     "accountsd|icloud|launchctl|accountsd — Accounts framework daemon; manages Apple ID, iCloud, Google, Exchange, and other account credentials. Disabling stops background account refresh for all configured accounts. Disable: launchctl bootout. Restore: bootstrap. Impact: Background account sync stops; accounts remain configured but do not auto-refresh."
     "appleaccountd|icloud|launchctl|appleaccountd — Apple Account daemon (macOS 15+); handles Apple ID authentication tokens and session refresh for iCloud services. Disable: launchctl bootout. Restore: bootstrap. Impact: iCloud authentication tokens not refreshed; iCloud services effectively offline."
@@ -618,7 +623,10 @@ apply_biomed() {
 }
 
 apply_biomesyncd() {
-    _lctl "biomesyncd" "system" "com.apple.biomesyncd"
+    # biomesyncd label not present in macOS 26 launchd; db write still prevents future load
+    _db_queue_disable "system" "com.apple.biomesyncd"
+    launchctl bootout "system/com.apple.biomesyncd" 2>/dev/null || true
+    ok "biomesyncd — queued for db disable + bootout"
 }
 
 apply_BiomeAgent() {
@@ -642,7 +650,7 @@ apply_audioanalyticsd() {
 }
 
 apply_historicalaudiod() {
-    _lctl "historicalaudiod" "system" "com.apple.historicalaudiod"
+    _lctl "historicalaudiod" "system" "com.apple.audio.isolated.historicalaudiod"
 }
 
 apply_diagnosticsagent() {
@@ -654,7 +662,8 @@ apply_diagnosticextensionsd() {
 }
 
 apply_ReportCrash() {
-    _lctl "ReportCrash" "gui" "com.apple.ReportCrash"
+    _lctl "ReportCrash" "gui"    "com.apple.ReportCrash"
+    _lctl "ReportCrash" "system" "com.apple.ReportCrash.Root"
 }
 
 apply_osanalyticshelper() {
@@ -688,6 +697,18 @@ apply_spotlightknowledged_importer() {
 
 apply_spotlightknowledged_updater() {
     _lctl "spotlightknowledged_updater" "gui" "com.apple.spotlightknowledged.updater"
+}
+
+apply_spotlightknowledged() {
+    _lctl "spotlightknowledged" "gui" "com.apple.spotlightknowledged"
+}
+
+apply_coreduetd() {
+    _lctl "coreduetd" "system" "com.apple.coreduetd"
+}
+
+apply_contextstored() {
+    _lctl "contextstored" "system" "com.apple.contextstored"
 }
 
 apply_knowledge_agent() {
@@ -802,12 +823,16 @@ apply_statusKitAgent() {
     _lctl "statusKitAgent" "gui" "com.apple.StatusKitAgent"
 }
 
+apply_voicebankingd() {
+    _lctl "voicebankingd" "gui" "com.apple.voicebankingd"
+}
+
 apply_AppSSOAgent() {
     _lctl "AppSSOAgent" "gui" "com.apple.AppSSOAgent"
 }
 
 apply_AppSSODaemon() {
-    _lctl "AppSSODaemon" "system" "com.apple.AppSSO.AppSSODaemon"
+    _lctl "AppSSODaemon" "system" "com.apple.AppSSODaemon"
 }
 
 apply_siri_disabled() {
@@ -835,7 +860,14 @@ apply_cloudphotod() {
 }
 
 apply_cloudsettingssyncagent() {
-    _lctl "cloudsettingssyncagent" "gui" "com.apple.cloudsettingssyncagent"
+    # Label not present in macOS 26 but db write prevents future load
+    _db_queue_disable "gui" "com.apple.cloudsettingssyncagent"
+    launchctl bootout "gui/$REAL_UID/com.apple.cloudsettingssyncagent" 2>/dev/null || true
+    ok "cloudsettingssyncagent — queued for db disable + bootout"
+}
+
+apply_FeatureAccessAgent() {
+    _lctl "FeatureAccessAgent" "gui" "com.apple.FeatureAccessAgent"
 }
 
 apply_iCloudNotificationAgent() {
@@ -1073,9 +1105,11 @@ apply_StocksKitService() {
 }
 
 apply_homeeventsd() {
-    # Label may differ across macOS versions; try known variants
-    _lctl "homeeventsd" "system" "com.apple.homekit.homeeventsd" 2>/dev/null || \
-    _lctl "homeeventsd" "system" "com.apple.HomeKitEvents.homeeventsd"
+    _lctl "homeeventsd" "gui" "com.apple.homeeventsd"
+}
+
+apply_homeenergyd() {
+    _lctl "homeenergyd" "gui" "com.apple.homeenergyd"
 }
 
 apply_homed() {
