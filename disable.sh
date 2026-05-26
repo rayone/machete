@@ -426,10 +426,12 @@ _db_flush() {
     local GUI_DB="/var/db/com.apple.xpc.launchd/disabled.${REAL_UID}.plist"
     local SYS_DB="/var/db/com.apple.xpc.launchd/disabled.plist"
 
-    # Safe array length under set -u: substitute 0 when array is unset/empty
-    local ndis nena
-    ndis=$(( ${#_DB_DISABLE_QUEUE[@]+"${#_DB_DISABLE_QUEUE[@]}"} + 0 ))
-    nena=$(( ${#_DB_ENABLE_QUEUE[@]+"${#_DB_ENABLE_QUEUE[@]}"} + 0 ))
+    # Temporarily suspend nounset so empty arrays don't trigger unbound errors.
+    # Both arrays are always initialised to () above; they are never truly unbound.
+    set +u
+    local ndis=${#_DB_DISABLE_QUEUE[@]}
+    local nena=${#_DB_ENABLE_QUEUE[@]}
+    set -u
 
     if [ "$ndis" -eq 0 ] && [ "$nena" -eq 0 ]; then
         return 0
@@ -438,10 +440,12 @@ _db_flush() {
     log "Flushing disable database ($ndis disable, $nena restore)..."
 
     # Write each label individually — PlistBuddy crashes on 200+ -c args at once.
-    # Already running as root so no extra sudo prompts.
+    # Script already runs as root so no extra sudo prompts.
     local gui_ok=0 sys_ok=0
 
-    for entry in "${_DB_DISABLE_QUEUE[@]+"${_DB_DISABLE_QUEUE[@]}"}"; do
+    set +u
+    for entry in "${_DB_DISABLE_QUEUE[@]}"; do
+        set -u
         local dt="${entry%%:*}" label="${entry#*:}"
         if [ "$dt" = "gui" ]; then
             /usr/libexec/PlistBuddy -c "Add :${label} bool true" "$GUI_DB" 2>/dev/null || \
@@ -453,8 +457,11 @@ _db_flush() {
             sys_ok=1
         fi
     done
+    set -u
 
-    for entry in "${_DB_ENABLE_QUEUE[@]+"${_DB_ENABLE_QUEUE[@]}"}"; do
+    set +u
+    for entry in "${_DB_ENABLE_QUEUE[@]}"; do
+        set -u
         local dt="${entry%%:*}" label="${entry#*:}"
         if [ "$dt" = "gui" ]; then
             /usr/libexec/PlistBuddy -c "Delete :${label}" "$GUI_DB" 2>/dev/null || true
@@ -464,6 +471,7 @@ _db_flush() {
             sys_ok=1
         fi
     done
+    set -u
 
     [ "$gui_ok" -eq 1 ] && ok "gui disable db written ($GUI_DB)" || true
     [ "$sys_ok" -eq 1 ] && ok "system disable db written ($SYS_DB)" || true
