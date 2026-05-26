@@ -160,6 +160,13 @@ DISABLE_LIST=(
     "knowledgeconstructiond|telemetry|launchctl|knowledgeconstructiond — Constructs structured knowledge from unstructured signals (emails, messages, calendar events) to build the Siri/Spotlight knowledge graph. New in macOS 26. Disable: db write + bootout. Restore: db remove. Impact: Knowledge construction pipeline stops."
     "analyticsagent_defaults|telemetry|defaults|AutomaticCheckEnabled=false in com.apple.SubmitDiagInfo — Preference that gates whether the diagnostics submission UI offers to send data to Apple. Disable: defaults write false. Restore: defaults write true. Impact: Diagnostic submission prompt suppressed at the preference layer in addition to the daemon-level disable."
     "diag_autosend|telemetry|defaults|AutoSubmit=false in com.apple.SubmitDiagInfo — Controls whether crash/diagnostic reports are automatically submitted to Apple without user confirmation. Disable: defaults write false. Restore: defaults delete (macOS default is unset = no auto-submit). Impact: Ensures no crash data is silently uploaded even if the daemon restarts."
+    "metrickitd|telemetry|launchctl|metrickitd — MetricKit upload daemon; collects per-app CPU, memory, hang, and crash metrics and forwards them to Apple. Disable: db write + bootout. Restore: db remove. Impact: MetricKit data not uploaded to Apple; local MetricKit API still works."
+    "proactiveeventtrackerd|telemetry|launchctl|proactiveeventtrackerd — Tracks proactive events (app opens, file accesses, context switches) to feed the Siri/Duet intelligence pipeline. Disable: db write + bootout. Restore: db remove. Impact: Event stream to intelligence pipeline stops."
+    "feedbackd|telemetry|launchctl|feedbackd — Apple Feedback Assistant daemon; queues and uploads diagnostic bundles to Apple's feedback portal. Zero use unless enrolled in Apple Beta Software Program. Disable: db write + bootout. Restore: db remove. Impact: Feedback bundles not uploaded."
+    "betaenrollmentagent|telemetry|launchctl|betaenrollmentagent — Apple Beta Software Program user agent; manages beta seed enrollment and presents beta update offers. Disable: db write + bootout. Restore: db remove. Impact: Beta seed offers not shown; machine stays on release track."
+    "betaenrollmentd|telemetry|launchctl|betaenrollmentd — System-domain counterpart to betaenrollmentagent; handles privileged enrollment operations. Disable: db write + bootout system. Restore: db remove system. Impact: Beta enrollment fully stopped."
+    "spindump_agent|telemetry|launchctl|spindump_agent — Periodic hang/spin reporter; generates spindump process snapshots on a schedule and queues them for Apple diagnostic submission. Disable: db write + bootout. Restore: db remove. Impact: Periodic spindump telemetry not collected; manual spindump CLI unaffected."
+    "milod|telemetry|launchctl|milod — MILO (Mac Internal Logging and Observation) daemon; low-level system observation framework used for Apple diagnostic telemetry. Disable: db write + bootout. Restore: db remove. Impact: MILO telemetry pipeline stopped."
     # ── siri ─────────────────────────────────────────────────────────────────
     "assistantd|siri|launchctl|assistantd — Core Siri daemon; handles voice recognition dispatch, natural language query routing, and Siri server communication. Disable: launchctl bootout. Restore: bootstrap. Impact: Siri entirely non-functional; no voice queries processed."
     "siriknowledged|siri|launchctl|siriknowledged — Maintains the on-device Siri knowledge graph: app usage, contacts relevance, location frequency, and learned shortcuts. Disable: launchctl bootout. Restore: bootstrap. Impact: Siri personalisation data not built or updated."
@@ -196,6 +203,12 @@ DISABLE_LIST=(
     "accountsd|icloud|launchctl|accountsd — Accounts framework daemon; manages Apple ID, iCloud, Google, Exchange, and other account credentials. Disabling stops background account refresh for all configured accounts. Disable: launchctl bootout. Restore: bootstrap. Impact: Background account sync stops; accounts remain configured but do not auto-refresh."
     "appleaccountd|icloud|launchctl|appleaccountd — Apple Account daemon (macOS 15+); handles Apple ID authentication tokens and session refresh for iCloud services. Disable: launchctl bootout. Restore: bootstrap. Impact: iCloud authentication tokens not refreshed; iCloud services effectively offline."
     "icloud_drive_defaults|icloud|defaults|NSDocumentSaveNewDocumentsToCloud=false — Prevents new documents created in TextEdit, Pages, Numbers etc. from defaulting to iCloud Drive as the save location. Disable: defaults write false. Restore: defaults write true. Impact: Save dialogs default to local disk instead of iCloud."
+    "replicatord|icloud|launchctl|replicatord — Handoff/Continuity replication daemon; syncs open app state (Handoff activities) to other Apple devices via iCloud so you can continue tasks on iPhone/iPad. Disable: db write + bootout. Restore: db remove. Impact: Handoff cross-device continuation stops."
+    "cdpd|icloud|launchctl|cdpd (CoreCDP) — Continuous Device Pairing daemon; manages trust relationships and key exchange between your Apple devices for iCloud Keychain and Handoff security. Disable: db write + bootout. Restore: db remove. Impact: Cross-device pairing and iCloud Keychain sync stop."
+    "adid|icloud|launchctl|adid (CoreADI) — Apple Device Identity daemon; maintains the device's anonymous identifier used by iCloud services, App Store, and Apple's anti-fraud stack. System domain. Disable: db write + bootout system. Restore: db remove system. Impact: Device identity not refreshed; iCloud auth may require re-login."
+    "ciphermld|icloud|launchctl|ciphermld — Cipher ML daemon; handles encrypted ML model delivery for iCloud-connected Apple Intelligence features. Disable: db write + bootout. Restore: db remove. Impact: Encrypted ML model delivery channel stops."
+    "seserviced|icloud|launchctl|seserviced — Secure Element service daemon; manages the Secure Element chip for Apple Pay/Wallet transactions and contactless payments. Disable: db write + bootout. Restore: db remove. Impact: Apple Pay and contactless payment stop. Safe if Apple Pay not used."
+    "backgroundassets_user|icloud|launchctl|backgroundassets.user — Background Assets framework user agent; manages on-demand resource downloads and pre-downloads for App Store apps that use the BackgroundAssets API. Disable: db write + bootout. Restore: db remove. Impact: App background asset downloads stop; apps may re-download assets on first launch."
     # ── media ─────────────────────────────────────────────────────────────────
     "itunescloudd|media|launchctl|itunescloudd — iTunes Match / Apple Music cloud library daemon; keeps your local music library in sync with iCloud Music Library. Disable: launchctl bootout. Restore: bootstrap. Impact: Apple Music library sync stops; downloaded tracks remain."
     "AMPDeviceDiscoveryAgent|media|launchctl|AMPDeviceDiscoveryAgent — Scans for Apple media devices (Apple TV, HomePod, AirPlay targets) on the local network. Disable: launchctl bootout. Restore: bootstrap. Impact: Apple media device discovery stops; AirPlay target list empty."
@@ -207,6 +220,15 @@ DISABLE_LIST=(
     "mediaremoteagent|media|launchctl|mediaremoteagent — User-domain Now Playing / media remote agent; exposes current playback state (track name, art, position) to Control Centre and remote control devices. Disable: launchctl bootout. Restore: bootstrap. Impact: Now Playing widget and media key remote control from external devices stop."
     "replayd|media|launchctl|replayd — ReplayKit daemon; manages screen and audio recording caches used by ReplayKit game/app replay features. Disable: launchctl bootout. Restore: bootstrap. Impact: ReplayKit replay buffer not maintained; screen recording via QuickTime still works."
     "BTServer_cloudpairing|media|launchctl|BTServer cloudpairing agent — Manages Bluetooth cloud pairing so Bluetooth devices (AirPods, Magic Keyboard) pair automatically with all your Apple devices via iCloud. Disable: launchctl bootout. Restore: bootstrap. Impact: Bluetooth accessories do not auto-pair across Apple devices."
+    "AMPArtworkAgent|media|launchctl|AMPArtworkAgent — Apple Media Protocol artwork agent; fetches and caches album art for Apple Music library items. Runs persistently even when Music is not open. Disable: db write + bootout. Restore: db remove. Impact: Apple Music artwork not fetched in background."
+    "AMPLibraryAgent|media|launchctl|AMPLibraryAgent — Apple Media Protocol library agent; manages the local Apple Music library metadata and syncs it with iCloud Music Library. Disable: db write + bootout. Restore: db remove. Impact: Apple Music library sync stops; pairs with AMPDeviceDiscoveryAgent disable."
+    "AMPSystemPlayerAgent|media|launchctl|AMPSystemPlayerAgent — Apple Media Protocol system player agent; provides the system-wide media playback state used by Control Centre Now Playing and media keys. Disable: db write + bootout. Restore: db remove. Impact: Media key control and Now Playing widget lose state when Music/Podcasts not active."
+    "AMPDevicesAgent|media|launchctl|AMPDevicesAgent — Apple Media Protocol devices agent; manages connected Apple media devices (iPod, iPhone) for Apple Music sync. Disable: db write + bootout. Restore: db remove. Impact: Apple Music device sync stops."
+    "PodcastContentService|media|launchctl|PodcastContentService — Podcast content background sync service; fetches new episode metadata and downloads queued episodes even when Podcasts is not open. Disable: db write + bootout. Restore: db remove. Impact: Podcast episodes not fetched in background."
+    "stickersd|media|launchctl|stickersd — Stickers daemon; manages the sticker pack library for Messages, FaceTime, and emoji picker. Runs persistently even when Messages is not open. Disable: db write + bootout. Restore: db remove. Impact: Custom sticker packs not available in Messages."
+    "businessservicesd|media|launchctl|businessservicesd — Business Chat service daemon; manages Apple Business Chat (iMessage-based customer support channel for businesses). Zero use on a personal dev machine. Disable: db write + bootout. Restore: db remove. Impact: Apple Business Chat not functional."
+    "nbagent|media|launchctl|noticeboard.agent — Noticeboard user agent; manages Apple's internal content distribution system used for App Store editorial cards, News highlights, and promotional banners. Disable: db write + bootout. Restore: db remove. Impact: Noticeboard content not fetched."
+    "nbstated|media|launchctl|noticeboard.state — Noticeboard state daemon (system domain); persists noticeboard content state across sessions. Disable: db write + bootout system. Restore: db remove system. Impact: Pairs with nbagent disable."
     # ── apple_intel ──────────────────────────────────────────────────────────
     "generativeexperiencesd|apple_intel|launchctl|generativeexperiencesd — Apple Intelligence generative experiences runtime; manages Writing Tools, image generation, and other generative AI features introduced in macOS 15. Disable: launchctl bootout. Restore: bootstrap. Impact: Apple Intelligence generative features unavailable."
     "intelligencecontextd|apple_intel|launchctl|intelligencecontextd — Intelligence Flow Context daemon; gathers on-device context (open documents, current app, recent actions) to supply to Apple Intelligence models for personalised responses. Disable: launchctl bootout. Restore: bootstrap. Impact: Apple Intelligence has no contextual awareness."
@@ -215,6 +237,8 @@ DISABLE_LIST=(
     "ModelCatalogAgent|apple_intel|launchctl|ModelCatalogAgent — User-domain agent that checks for updated Apple Intelligence model packages and downloads them from Apple's CDN in the background. Disable: launchctl bootout. Restore: bootstrap. Impact: Apple Intelligence model updates not downloaded."
     "modelcatalogd|apple_intel|launchctl|modelcatalogd — System daemon that manages the on-disk catalogue of installed Apple Intelligence model bundles and their metadata. Disable: launchctl bootout. Restore: bootstrap. Impact: Model catalogue not maintained; pairs with ModelCatalogAgent disable."
     "AppleIntelligenceReporting|apple_intel|launchctl|AppleIntelligenceReportingProcessingService — Processes and aggregates Apple Intelligence usage events for telemetry reporting to Apple. Disable: launchctl bootout. Restore: bootstrap. Impact: Apple Intelligence usage data not reported."
+    "mlhostd|apple_intel|launchctl|mlhostd — ML model hosting daemon; loads and serves Core ML models for on-device inference requests from Apple Intelligence features. Disable: db write + bootout. Restore: db remove. Impact: On-device ML model serving stops; Apple Intelligence features non-functional."
+    "griddatad|apple_intel|launchctl|griddatad — Grid data daemon; manages spatial/grid data used by Apple Intelligence context models and on-device ML feature extraction. System domain. Disable: db write + bootout system. Restore: db remove system. Impact: Spatial context data not available to ML pipeline."
     # ── appstore ─────────────────────────────────────────────────────────────
     "promotedcontentd|appstore|launchctl|promotedcontentd — App Store promoted/advertised content daemon; fetches personalised app and in-app purchase ads from Apple's ad platform and stores them for display in App Store search results. Disable: launchctl bootout. Restore: bootstrap. Impact: App Store ad slots empty; no ad targeting requests made."
     "adprivacyd|appstore|launchctl|adprivacyd — Ad privacy daemon (SKAdNetwork / Apple Ads attribution); manages the privacy-preserving ad click attribution pipeline used by App Store ads. Disable: launchctl bootout. Restore: bootstrap. Impact: Ad attribution pipeline stops; no ad measurement data sent to Apple."
@@ -255,18 +279,26 @@ DISABLE_LIST=(
     "photolibraryd|social|launchctl|photolibraryd — Photos library daemon; indexes the local photo library and serves photo data to Photos, iMessage, Spotlight, and other apps. Disable: launchctl bootout. Restore: bootstrap. Impact: Photos library not indexed in the background; Photos app re-indexes on open. Only disable if Photos is not used."
     "photoanalysisd|social|launchctl|photoanalysisd — Runs ML analysis on photos to identify faces, scenes, objects, and text for the People/Places/Memories features. High CPU usage after library changes. Disable: launchctl bootout. Restore: bootstrap. Impact: Photo ML analysis stops; People, Places, and Memories not updated."
     "mediaanalysisd|social|launchctl|mediaanalysisd — Runs ML analysis on videos for scene detection and visual search. Complement to photoanalysisd for video content. Disable: launchctl bootout. Restore: bootstrap. Impact: Video content ML analysis stops."
+    "familycircled|social|launchctl|familycircled — Family Circle daemon; manages Family Sharing membership, shared purchases, parental controls, and Screen Time family sync. Disable: db write + bootout. Restore: db remove. Impact: Family Sharing features stop; no parental control sync."
+    "ecosystemd|social|launchctl|ecosystemd — Ecosystem daemon; coordinates cross-device feature availability (Handoff eligibility, Sidecar, Universal Control) by tracking which Apple devices are nearby and their capabilities. Disable: db write + bootout system. Restore: db remove system. Impact: Cross-device feature negotiation stops; Sidecar/Universal Control not advertised."
+    "chronod|social|launchctl|chronod — Chrono daemon; manages scheduled Shortcuts automations and calendar-triggered actions. Runs persistently to fire time-based triggers. Disable: db write + bootout. Restore: db remove. Impact: Shortcuts time/calendar automations not triggered."
     # ── gaming ────────────────────────────────────────────────────────────────
     "gamecontrolleragentd|gaming|launchctl|gamecontrolleragentd — User-domain game controller agent; monitors for connected game controllers and publishes them to the GCController framework. Disable: launchctl bootout. Restore: bootstrap. Impact: Game controllers not discovered by apps using GameController framework."
     "gamecontrollerd|gaming|launchctl|gamecontrollerd — System-domain game controller daemon; handles HID-level controller input routing. Disable: launchctl bootout system. Restore: bootstrap system. Impact: Game controller input not routed to apps."
     "gamepolicyd|gaming|launchctl|gamepolicyd — Manages Game Mode policy; determines when a game is the primary focus and applies CPU/GPU priority boosts. Disable: launchctl bootout system. Restore: bootstrap system. Impact: Game Mode not activated for any app."
     "GamePolicyAgent|gaming|launchctl|GamePolicyAgent — User-domain counterpart to gamepolicyd; communicates Game Mode status to apps via the GKGameCenterViewController API. Disable: db write + bootout. Restore: db remove. Impact: Game Mode UI not shown to apps."
     "GameController_agent|gaming|launchctl|GameController_agent — Duplicate GameController agent label (com.apple.GameController.gamecontrolleragentd). Covers both label variants present on macOS 26. Disable: launchctl bootout. Restore: bootstrap. Impact: Controller discovery stops."
+    "nearbyd|gaming|launchctl|nearbyd — Nearby Interaction daemon; manages UWB (Ultra Wideband) and Bluetooth proximity detection for AirDrop 2.0, Precision Finding, and spatial awareness features. System domain. Disable: db write + bootout system. Restore: db remove system. Impact: UWB proximity features stop; standard AirDrop and Bluetooth unaffected."
+    "nfcd|gaming|launchctl|nfcd — NFC daemon; manages the NFC chip for Apple Pay contactless payments and NFC tag reading. System domain. Disable: db write + bootout system. Restore: db remove system. Impact: Apple Pay contactless and NFC tag reading stop. Safe if no NFC hardware used."
+    "wifip2pd|gaming|launchctl|wifip2pd — WiFi peer-to-peer daemon; manages direct WiFi connections for AirDrop, AirPlay peer mode, and GameKit multiplayer. Disable: db write + bootout system. Restore: db remove system. Impact: AirDrop and GameKit peer WiFi stop; regular WiFi internet unaffected."
     # ── mdm ──────────────────────────────────────────────────────────────────
     "remotemanagementd|mdm|launchctl|remotemanagementd — Remote Management daemon; implements the MDM protocol, receives management commands from an MDM server, and applies configuration profiles. Disable: launchctl bootout system. Restore: bootstrap system. Impact: MDM commands not received or processed. Only disable if this machine is not enrolled in MDM."
     "RemoteManagementAgent|mdm|launchctl|RemoteManagementAgent — User-domain MDM agent; applies user-scoped MDM payloads (email accounts, VPN profiles, per-user restrictions) delivered by remotemanagementd. Disable: launchctl bootout. Restore: bootstrap. Impact: User-scoped MDM payloads not applied."
     "ManagedSettingsAgent|mdm|launchctl|ManagedSettingsAgent — Enforces managed preference restrictions set by MDM (screen time limits, content filters, app restrictions). Disable: launchctl bootout. Restore: bootstrap. Impact: Managed preference restrictions not enforced."
     "managedappdistributiond|mdm|launchctl|managedappdistributiond — System daemon for MDM-managed app distribution; handles VPP app assignment and installation commands. Disable: launchctl bootout system. Restore: bootstrap system. Impact: MDM-pushed app installs not processed."
     "managedappdistributionagent|mdm|launchctl|managedappdistributionagent — User-domain counterpart to managedappdistributiond; handles the user-visible parts of MDM app distribution. Disable: launchctl bootout. Restore: bootstrap. Impact: User-facing MDM app distribution stops."
+    "studentd|mdm|launchctl|studentd — Student identity daemon; used by Apple Classroom app to identify and manage student-designated devices. Disable: db write + bootout. Restore: db remove. Impact: Classroom app device management non-functional. Zero impact on a non-education machine."
+    "lockdownmoded|mdm|launchctl|lockdownmoded — Lockdown Mode daemon; manages the Lockdown Mode extreme security state for high-risk users (journalists, activists). When inactive it only polls for the mode being enabled. Disable: db write + bootout. Restore: db remove. Impact: Lockdown Mode cannot be activated. Safe if you are not enabling Lockdown Mode."
     # ── updates ──────────────────────────────────────────────────────────────
     "softwareupdated|updates|launchctl|softwareupdated — Background software update daemon; periodically checks Apple's update servers, downloads update packages, and notifies users. Disable: launchctl bootout system (both com.apple.softwareupdated and com.apple.mobile.softwareupdated). Restore: bootstrap. Impact: Automatic update checks and downloads stop; updates still work manually via System Settings."
     "SoftwareUpdateNotificationManager|updates|launchctl|SoftwareUpdateNotificationManager — Presents the 'Update Available' notification banner and badge. Disable: launchctl bootout. Restore: bootstrap. Impact: Update notification banners not shown; pairs with softwareupdated disable."
@@ -274,6 +306,9 @@ DISABLE_LIST=(
     "assetsubscriptiond|updates|launchctl|assetsubscriptiond — Subscribes to Apple asset delivery feeds (Siri voices, system fonts, AR assets, ML model components) and downloads them when the device is idle. Disable: launchctl bootout. Restore: bootstrap. Impact: Optional system asset downloads stop; existing assets remain; new feature assets not pre-fetched."
     "jetpackassetd|updates|launchctl|jetpackassetd (JetCore) — Downloads and caches JetEngine precompiled shader and ML model assets used to accelerate app launch on Apple Silicon. Disable: launchctl bootout. Restore: bootstrap. Impact: JetEngine asset prefetch stops; existing cached assets still used; minor first-launch latency for affected apps."
     "mobileassetd|updates|launchctl|mobileassetd — Core asset delivery daemon that backs assetsubscriptiond; manages the download queue, caching, and integrity verification of all Apple asset packages. Disable: launchctl bootout system. Restore: bootstrap system. Impact: All Apple background asset delivery stops."
+    "tzd|updates|launchctl|tzd — Timezone update daemon; periodically fetches timezone database updates from Apple's servers to keep DST rules current. Disable: db write + bootout system. Restore: db remove system. Impact: Timezone database not auto-updated; run 'systemsetup -settimezone' manually after DST changes."
+    "frauddefensed|updates|launchctl|frauddefensed — Fraud defense daemon; part of Apple's device attestation stack used by iCloud and App Store to verify device authenticity for anti-fraud purposes. Disable: db write + bootout. Restore: db remove. Impact: Device attestation not refreshed; App Store and iCloud may require re-authentication."
+    "intelligentroutingd|updates|launchctl|intelligentroutingd — Intelligent network routing daemon; learns which network interfaces (WiFi, Ethernet, VPN) give best performance for each destination and adjusts routing accordingly. Disable: db write + bootout. Restore: db remove. Impact: Network routing uses OS defaults instead of learned preferences; no measurable impact on a wired/stable WiFi dev machine."
 )
 
 TOTAL_ITEMS=${#DISABLE_LIST[@]}
@@ -1267,6 +1302,162 @@ apply_jetpackassetd() {
 
 apply_mobileassetd() {
     _lctl "mobileassetd" "system" "com.apple.mobileassetd"
+}
+
+# ── NEW TELEMETRY ────────────────────────────────────────────────────────────
+
+apply_metrickitd() {
+    _lctl "metrickitd" "gui" "com.apple.metrickitd"
+}
+
+apply_proactiveeventtrackerd() {
+    _lctl "proactiveeventtrackerd" "gui" "com.apple.proactiveeventtrackerd"
+}
+
+apply_feedbackd() {
+    _lctl "feedbackd" "gui" "com.apple.feedbackd"
+}
+
+apply_betaenrollmentagent() {
+    _lctl "betaenrollmentagent" "gui" "com.apple.betaenrollmentagent"
+}
+
+apply_betaenrollmentd() {
+    _lctl "betaenrollmentd" "system" "com.apple.betaenrollmentd"
+}
+
+apply_spindump_agent() {
+    _lctl "spindump_agent" "gui" "com.apple.spindump_agent"
+}
+
+apply_milod() {
+    _lctl "milod" "gui" "com.apple.milod"
+}
+
+# ── NEW APPLE INTEL ──────────────────────────────────────────────────────────
+
+apply_mlhostd() {
+    _lctl "mlhostd" "gui" "com.apple.mlhostd"
+}
+
+apply_griddatad() {
+    _lctl "griddatad" "system" "com.apple.griddatad"
+}
+
+# ── NEW ICLOUD ───────────────────────────────────────────────────────────────
+
+apply_replicatord() {
+    _lctl "replicatord" "gui" "com.apple.replicatord"
+}
+
+apply_cdpd() {
+    _lctl "cdpd" "gui" "com.apple.cdpd"
+}
+
+apply_adid() {
+    _lctl "adid" "system" "com.apple.adid"
+}
+
+apply_ciphermld() {
+    _lctl "ciphermld" "gui" "com.apple.ciphermld"
+}
+
+apply_seserviced() {
+    _lctl "seserviced" "gui" "com.apple.seserviced"
+}
+
+apply_backgroundassets_user() {
+    _lctl "backgroundassets_user" "gui" "com.apple.backgroundassets.user"
+}
+
+# ── NEW MEDIA ────────────────────────────────────────────────────────────────
+
+apply_AMPArtworkAgent() {
+    _lctl "AMPArtworkAgent" "gui" "com.apple.AMPArtworkAgent"
+}
+
+apply_AMPLibraryAgent() {
+    _lctl "AMPLibraryAgent" "gui" "com.apple.AMPLibraryAgent"
+}
+
+apply_AMPSystemPlayerAgent() {
+    _lctl "AMPSystemPlayerAgent" "gui" "com.apple.AMPSystemPlayerAgent"
+}
+
+apply_AMPDevicesAgent() {
+    _lctl "AMPDevicesAgent" "gui" "com.apple.AMPDevicesAgent"
+}
+
+apply_PodcastContentService() {
+    _lctl "PodcastContentService" "gui" "com.apple.podcasts.PodcastContentService"
+}
+
+apply_stickersd() {
+    _lctl "stickersd" "gui" "com.apple.stickersd"
+}
+
+apply_businessservicesd() {
+    _lctl "businessservicesd" "gui" "com.apple.businessservicesd"
+}
+
+apply_nbagent() {
+    _lctl "nbagent" "gui" "com.apple.noticeboard.agent"
+}
+
+apply_nbstated() {
+    _lctl "nbstated" "system" "com.apple.noticeboard.state"
+}
+
+# ── NEW SOCIAL ───────────────────────────────────────────────────────────────
+
+apply_familycircled() {
+    _lctl "familycircled" "gui" "com.apple.familycircled"
+}
+
+apply_ecosystemd() {
+    _lctl "ecosystemd" "system" "com.apple.ecosystemd"
+}
+
+apply_chronod() {
+    _lctl "chronod" "gui" "com.apple.chronod"
+}
+
+# ── NEW GAMING / NETWORK ─────────────────────────────────────────────────────
+
+apply_nearbyd() {
+    _lctl "nearbyd" "system" "com.apple.nearbyd"
+}
+
+apply_nfcd() {
+    _lctl "nfcd" "system" "com.apple.nfcd"
+}
+
+apply_wifip2pd() {
+    _lctl "wifip2pd" "system" "com.apple.wifip2pd"
+}
+
+# ── NEW MDM ──────────────────────────────────────────────────────────────────
+
+apply_studentd() {
+    _lctl "studentd" "gui" "com.apple.studentd"
+}
+
+apply_lockdownmoded() {
+    _lctl "lockdownmoded" "gui" "com.apple.lockdownmoded"
+}
+
+# ── NEW UPDATES ──────────────────────────────────────────────────────────────
+
+apply_tzd() {
+    _lctl "tzd" "system" "com.apple.timezoneupdates.tzd"
+}
+
+apply_frauddefensed() {
+    _lctl "frauddefensed" "gui" "com.apple.frauddefensed"
+}
+
+apply_intelligentroutingd() {
+    _lctl "intelligentroutingd" "gui" "com.apple.intelligentroutingd"
 }
 
 # ---------------------------------------------------------------------------
