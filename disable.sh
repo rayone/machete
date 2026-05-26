@@ -426,8 +426,10 @@ _db_flush() {
     local GUI_DB="/var/db/com.apple.xpc.launchd/disabled.${REAL_UID}.plist"
     local SYS_DB="/var/db/com.apple.xpc.launchd/disabled.plist"
 
-    local ndis=${#_DB_DISABLE_QUEUE[@]+"${#_DB_DISABLE_QUEUE[@]}"}; ndis=${ndis:-0}
-    local nena=${#_DB_ENABLE_QUEUE[@]+"${#_DB_ENABLE_QUEUE[@]}"}; nena=${nena:-0}
+    # Safe array length under set -u: substitute 0 when array is unset/empty
+    local ndis nena
+    ndis=$(( ${#_DB_DISABLE_QUEUE[@]+"${#_DB_DISABLE_QUEUE[@]}"} + 0 ))
+    nena=$(( ${#_DB_ENABLE_QUEUE[@]+"${#_DB_ENABLE_QUEUE[@]}"} + 0 ))
 
     if [ "$ndis" -eq 0 ] && [ "$nena" -eq 0 ]; then
         return 0
@@ -435,56 +437,36 @@ _db_flush() {
 
     log "Flushing disable database ($ndis disable, $nena restore)..."
 
-    # Build PlistBuddy command batches — one invocation per db file
-    local gui_cmds=() sys_cmds=()
+    # Write each label individually — PlistBuddy crashes on 200+ -c args at once.
+    # Already running as root so no extra sudo prompts.
+    local gui_ok=0 sys_ok=0
 
     for entry in "${_DB_DISABLE_QUEUE[@]+"${_DB_DISABLE_QUEUE[@]}"}"; do
         local dt="${entry%%:*}" label="${entry#*:}"
-        local cmd="Add :${label} bool true"
-        [ "$dt" = "gui" ] && gui_cmds+=(-c "$cmd") || sys_cmds+=(-c "$cmd")
+        if [ "$dt" = "gui" ]; then
+            /usr/libexec/PlistBuddy -c "Add :${label} bool true" "$GUI_DB" 2>/dev/null || \
+            /usr/libexec/PlistBuddy -c "Set :${label} true"       "$GUI_DB" 2>/dev/null || true
+            gui_ok=1
+        else
+            /usr/libexec/PlistBuddy -c "Add :${label} bool true" "$SYS_DB" 2>/dev/null || \
+            /usr/libexec/PlistBuddy -c "Set :${label} true"       "$SYS_DB" 2>/dev/null || true
+            sys_ok=1
+        fi
     done
+
     for entry in "${_DB_ENABLE_QUEUE[@]+"${_DB_ENABLE_QUEUE[@]}"}"; do
         local dt="${entry%%:*}" label="${entry#*:}"
-        local cmd="Delete :${label}"
-        [ "$dt" = "gui" ] && gui_cmds+=(-c "$cmd") || sys_cmds+=(-c "$cmd")
+        if [ "$dt" = "gui" ]; then
+            /usr/libexec/PlistBuddy -c "Delete :${label}" "$GUI_DB" 2>/dev/null || true
+            gui_ok=1
+        else
+            /usr/libexec/PlistBuddy -c "Delete :${label}" "$SYS_DB" 2>/dev/null || true
+            sys_ok=1
+        fi
     done
 
-    # Write gui db — PlistBuddy will error on duplicate Add; use Set as fallback
-    if [ ${#gui_cmds[@]} -gt 0 ]; then
-        /usr/libexec/PlistBuddy "${gui_cmds[@]}" "$GUI_DB" 2>/dev/null || {
-            # Fallback: write each entry individually with Add-or-Set
-            for entry in "${_DB_DISABLE_QUEUE[@]+"${_DB_DISABLE_QUEUE[@]}"}"; do
-                local dt="${entry%%:*}" label="${entry#*:}"
-                [ "$dt" != "gui" ] && continue
-                /usr/libexec/PlistBuddy -c "Add :${label} bool true" "$GUI_DB" 2>/dev/null || \
-                /usr/libexec/PlistBuddy -c "Set :${label} true"       "$GUI_DB" 2>/dev/null || true
-            done
-            for entry in "${_DB_ENABLE_QUEUE[@]+"${_DB_ENABLE_QUEUE[@]}"}"; do
-                local dt="${entry%%:*}" label="${entry#*:}"
-                [ "$dt" != "gui" ] && continue
-                /usr/libexec/PlistBuddy -c "Delete :${label}" "$GUI_DB" 2>/dev/null || true
-            done
-        }
-        ok "gui disable db updated ($GUI_DB)"
-    fi
-
-    # Write system db
-    if [ ${#sys_cmds[@]} -gt 0 ]; then
-        /usr/libexec/PlistBuddy "${sys_cmds[@]}" "$SYS_DB" 2>/dev/null || {
-            for entry in "${_DB_DISABLE_QUEUE[@]+"${_DB_DISABLE_QUEUE[@]}"}"; do
-                local dt="${entry%%:*}" label="${entry#*:}"
-                [ "$dt" != "system" ] && continue
-                /usr/libexec/PlistBuddy -c "Add :${label} bool true" "$SYS_DB" 2>/dev/null || \
-                /usr/libexec/PlistBuddy -c "Set :${label} true"       "$SYS_DB" 2>/dev/null || true
-            done
-            for entry in "${_DB_ENABLE_QUEUE[@]+"${_DB_ENABLE_QUEUE[@]}"}"; do
-                local dt="${entry%%:*}" label="${entry#*:}"
-                [ "$dt" != "system" ] && continue
-                /usr/libexec/PlistBuddy -c "Delete :${label}" "$SYS_DB" 2>/dev/null || true
-            done
-        }
-        ok "system disable db updated ($SYS_DB)"
-    fi
+    [ "$gui_ok" -eq 1 ] && ok "gui disable db written ($GUI_DB)" || true
+    [ "$sys_ok" -eq 1 ] && ok "system disable db written ($SYS_DB)" || true
 }
 
 # _db_check_disabled DOMAIN_TYPE LABEL — returns "true" or "" using cached db reads
