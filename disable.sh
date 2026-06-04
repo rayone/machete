@@ -526,12 +526,25 @@ _db_check_disabled() {
     if [ "$domain_type" = "gui" ]; then
         [ -z "$_GUI_DB_CACHE" ] && \
             _GUI_DB_CACHE=$(plutil -p "/var/db/com.apple.xpc.launchd/disabled.${REAL_UID}.plist" 2>/dev/null || echo "")
-        echo "$_GUI_DB_CACHE" | grep -q "\"${label}\" => 1" && echo "true" || echo ""
+        echo "$_GUI_DB_CACHE" | grep -q "\"${label}\" => true" && echo "true" || echo ""
     else
         [ -z "$_SYS_DB_CACHE" ] && \
             _SYS_DB_CACHE=$(plutil -p "/var/db/com.apple.xpc.launchd/disabled.plist" 2>/dev/null || echo "")
-        echo "$_SYS_DB_CACHE" | grep -q "\"${label}\" => 1" && echo "true" || echo ""
+        echo "$_SYS_DB_CACHE" | grep -q "\"${label}\" => true" && echo "true" || echo ""
     fi
+}
+
+# ---------------------------------------------------------------------------
+# Snapshot loaded services once at startup — avoids 168 individual
+# launchctl list calls which are slow and can stall under sudo.
+# _LOADED_SNAPSHOT is populated before the main loop.
+# ---------------------------------------------------------------------------
+_LOADED_SNAPSHOT=""
+_snapshot_loaded_services() {
+    _LOADED_SNAPSHOT=$(launchctl list 2>/dev/null | awk 'NR>1{print $3}')
+}
+_is_loaded() {
+    echo "$_LOADED_SNAPSHOT" | grep -qxF "$1" && echo "yes" || echo ""
 }
 
 # _lctl KEY DOMAIN_TYPE LABEL
@@ -549,13 +562,10 @@ _lctl() {
     local domain_path
     [ "$domain_type" = "gui" ] && domain_path="gui/$REAL_UID" || domain_path="system"
 
-    # Detect current state — handle both legacy tabular and macOS 26 JSON output
+    # Detect current state using pre-built snapshot — no per-item launchctl call
     local current
-    if launchctl list "$label" > /dev/null 2>&1; then
-        local _raw; _raw=$(launchctl list "$label" 2>/dev/null)
-        local _pid; _pid=$(echo "$_raw" | grep -o '"PID"[[:space:]]*:[[:space:]]*[0-9]*' | grep -o '[0-9]*$')
-        [ -z "$_pid" ] && _pid=$(echo "$_raw" | awk 'NR==1 && $1 ~ /^[0-9]+$/ {print $1}')
-        [ -n "$_pid" ] && [ "$_pid" != "-" ] && current="running (PID $_pid)" || current="loaded (not running)"
+    if [ -n "$(_is_loaded "$label")" ]; then
+        current="loaded"
     else
         local _in_db; _in_db=$(_db_check_disabled "$domain_type" "$label")
         [ "$_in_db" = "true" ] && current="already disabled (db)" || current="not loaded"
@@ -1490,6 +1500,9 @@ NUM=0
 _ITEM_NUM=0
 _ITEM_DESC=""
 _ITEM_GROUP=""
+
+# Snapshot all loaded services once — used by _lctl for fast state detection
+[ "$DRY_RUN" = false ] && _snapshot_loaded_services
 
 for entry in "${WORK_LIST[@]}"; do
     NUM=$((NUM + 1))
