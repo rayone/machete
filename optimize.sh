@@ -1,7 +1,7 @@
 #!/bin/bash
 # ==============================================================================
 # OPTIMIZATIONS — macOS 26.4 / Apple M5 Max
-# 109 individually confirmed system preferences and tuning settings.
+# 111 individually confirmed system preferences and tuning settings.
 #
 # USAGE:
 #   sudo ./optimizations.sh [OPTIONS]
@@ -36,14 +36,13 @@
 #   finder       Hidden files, extensions, path bar, panels, iCloud
 #   ui           Green button, widgets, shortcuts, clock, wallpaper
 #   power        AC/battery sleep, clamshell, Power Nap, standby
-#   network      TCP tuning, sysctl, Chrome DoH, DNS flush
-#   chrome       Memory Saver, tab discarding, background mode, battery saver
-#   updates      Apple SU, Chrome Keystone, Edge updater, AirDrop, Handoff
-#   security     SMB guest, SSH, Remote Events, Gatekeeper, TCC, mDNS, pfctl
+#   network      TCP tuning, sysctl, DNS flush
+#   updates      Apple SU, AirDrop, Handoff
+#   security     SMB guest, SSH, Remote Events, Gatekeeper, TCC, mDNS, ALF
 #
 # DEPENDENCIES:
-#   - PlistBuddy (/usr/libexec/PlistBuddy) — used by apply_chrome_doh()
-#     Note: Bundled with macOS base system. If missing, chrome_doh will fail gracefully.
+#   - PlistBuddy (/usr/libexec/PlistBuddy) — used by Chrome managed policy functions
+#     Note: Bundled with macOS base system. If missing, chrome_* items will fail gracefully.
 #   - No Xcode Command Line Tools required (python3 dependency removed)
 # ==============================================================================
 
@@ -174,7 +173,7 @@ OPTIM_LIST=(
     "spring_load|trackpad|Spring-loading delay → 0.1s (default 0.5s) — folders pop open almost instantly when you hover over them while dragging a file, reducing drag-and-drop steps"
     "tap_to_click|trackpad|Enable tap-to-click — a light tap registers as a click without physically pressing the trackpad down, reducing fatigue and noise"
     "tap_to_drag|trackpad|Enable tap-to-drag — double-tap and hold to drag without a physical press; complements tap-to-click for moving windows and files"
-    "three_finger_drag|trackpad|Disable 3-finger drag — frees the 3-finger gesture for MiddleClick (open links in new tab); drag is handled by tap-to-drag instead"
+    "three_finger_drag|trackpad|Enable 3-finger drag — drag windows, select text, and move files by swiping with three fingers; more ergonomic than click-and-hold for extended drags"
     "three_finger_tap|trackpad|Disable 3-finger tap Look Up — prevents accidental dictionary popups when gesturing; look up still works via Force Touch"
     "natural_scroll|trackpad|Natural scroll OFF — restores traditional direction (wheel down = page down) matching every non-Apple scroll device and most muscle memory"
     # ── spotlight ───────────────────────────────────────────────────────────
@@ -249,6 +248,8 @@ OPTIM_LIST=(
     "clock_seconds|ui|Show seconds in the menu bar clock — visible elapsed time without opening another app; useful when timing commands or builds"
     "clock_menubar_format|ui|Menu bar clock format → yyyy-MM-dd HH:mm:ss — combines ISO date and 24-hour time with seconds in a single compact string; consistent with terminal and log timestamps"
     "computer_name|ui|Set computer name to MACHETE_COMPUTER_NAME — sets ComputerName, LocalHostName, HostName, and SMB NetBIOSName in one step (edit MACHETE_COMPUTER_NAME at the top of this file)"
+    "night_shift|ui|Enable Night Shift 24/7 — sets a custom schedule from 00:00 to 23:59 with normal warmth (middle of the slider); reduces blue light emission permanently without requiring manual toggling each evening"
+    "notifications_disable|ui|Disable ALL notifications system-wide — turns off Notification Centre banners, alerts, badges, and sounds for every app; eliminates all visual and audible interruptions without per-app configuration"
     # ── power ───────────────────────────────────────────────────────────────
     "power_mode_auto|power|AC power mode → Auto — CPU and GPU boost to full performance under load and throttle back at idle; avoids locking into High Power Mode (wastes energy at idle) or Low Power Mode (caps burst performance)"
     "power_display_sleep_ac|power|AC display sleep → 5 min — display turns off after 5 minutes of inactivity on AC power; saves GPU/display energy without being disruptive during normal work sessions"
@@ -267,29 +268,13 @@ OPTIM_LIST=(
     "tcp_send_recv_space|network|TCP send/receive window → 1 MB per connection (default 128 KB) — larger window means more data can be in transit before waiting for acknowledgement; most impactful on high-latency or high-bandwidth connections"
     "tcp_somaxconn|network|Listen backlog → 2048 connections (default 128) — the kernel queues up to 2048 incoming connections before refusing new ones; relevant when running local dev servers (webpack, vite, http-server) under burst browser load"
     "sysctl_perf|network|Kernel vnode cache → 750 000 entries (default ~263 000) — each open file or directory requires a vnode; raising the limit prevents 'too many open files' errors in large monorepos and stops the kernel from evicting hot cache entries under load"
-    "launchd_maxfiles|network|Per-process open file descriptor limit → 65 536 (default soft limit 256) — Node.js, Docker, webpack, Jest, and large git operations routinely exhaust the 256-handle soft limit and crash with EMFILE; writes a LaunchDaemon plist that raises the limit system-wide at every boot"
     "iogpu_wired_limit|network|GPU wired memory cap → installed RAM − 6 GB — iogpu.wired_limit_mb tells the Metal driver the maximum it may wire for GPU use; leaving 6 GB headroom guarantees the kernel always has breathing room for CPU workloads and page tables even when a GPU-heavy app tries to claim all unified memory"
     "sysctl_persist|network|Write all sysctl tuning values to /etc/sysctl.conf — makes the tcp_socket_buffer, tcp_send_recv_space, tcp_somaxconn, sysctl_perf, and iogpu_wired_limit changes survive reboots; without this file all sysctl changes revert on next boot"
-    #"chrome_doh|network|Disable Chrome DNS-over-HTTPS (fixes ERR_ADDRESS_UNREACHABLE on IPv4-only)" also breaks local DNS addresses.
     "dns_flush|network|Flush DNS resolver cache — clears stale DNS entries immediately after hosts_telemetry edits /etc/hosts; also useful after changing DNS servers or debugging resolution failures"
-    # ── chrome ─────────────────────────────────────────────────────────────
-    "chrome_memory_saver|chrome|Memory Saver → extreme aggressiveness — Chrome discards inactive tab renderer processes sooner and more readily, freeing their RAM back to the OS; 'extreme' sets a shorter idle timeout than 'balanced' or 'moderate'"
-    "chrome_tab_discard|chrome|Automatic tab discarding ON — Chrome can discard (suspend) background tabs under memory pressure as a managed policy; tabs reload on activation but are not consuming RAM while suspended"
-    "chrome_high_efficiency|chrome|High Efficiency Mode always ON — enforces Memory Saver as a managed policy so the user cannot disable it; ensures chrome_memory_saver stays active even after Chrome updates reset user preferences"
-    "chrome_site_isolation|chrome|Site isolation OFF for most origins, ON for mail.google.com — disabling per-site renderer processes saves ~500 MB RAM (each isolated site gets its own process); Gmail stays isolated as it handles sensitive session data"
-    "chrome_background_mode|chrome|Background mode OFF — Chrome fully exits when the last window closes instead of remaining as a background process; reclaims all Chrome memory and CPU immediately on close"
-    "chrome_startup_boost|chrome|Startup boost OFF — disables Chrome pre-launching at login to speed up first-open; not applicable on macOS (Windows-only feature) but the policy prevents it if Chrome adds macOS support later"
-    "chrome_battery_saver|chrome|Battery Saver always ON — Chrome reduces JavaScript timer frequency, animation frame rate, and video decode quality when Battery Saver is active; reduces CPU and GPU load even on AC"
-    "chrome_iframe_throttle|chrome|Throttle hidden cross-origin iframes — background iframes (ads, trackers, analytics) that are not visible have their CPU and network activity throttled; reduces background tab CPU usage"
-    "chrome_disk_cache|chrome|Disk cache → 1 GB (Chrome default ~320 MB auto-sized) — larger cache means more resources are served from disk on revisit instead of re-fetched over the network; most impactful on sites with many large static assets"
-    "chrome_back_forward_cache|chrome|Back/Forward cache ON — Chrome keeps the full rendered state of recently visited pages in memory so Back and Forward navigation is instant instead of re-fetching and re-rendering the page"
     # ── updates ─────────────────────────────────────────────────────────────
     "apple_autoupdate|updates|Disable Apple Software Update auto-check, auto-download, and auto-install — stops background update daemons from waking, downloading large OS packages, and installing without explicit consent; manual updates via System Settings still work"
-    "chrome_keystone|updates|Disable Chrome Keystone auto-updater — stops all 4 Keystone launch agents and daemons from running at login and in the background; Chrome can still be updated manually from chrome://settings/help"
-    "edge_updater|updates|Disable Microsoft Edge background updater — removes the EdgeUpdater LaunchAgent that wakes periodically to check for and download Edge updates; Edge can still be updated manually"
     "airdrop|updates|Disable AirDrop — stops the discoveryd/mDNS advertising that makes the machine visible to nearby Apple devices; eliminates the background Bluetooth and Wi-Fi scanning AirDrop requires to remain discoverable"
     "handoff_continuity|updates|Disable Handoff and Continuity — stops activity advertising to nearby Apple devices (iPhone, iPad, other Macs); eliminates the Bluetooth LE broadcasts and iCloud polling Handoff uses to surface cross-device suggestions"
-    "chrome_crashpad|updates|Create Chrome Crashpad settings.dat — pre-creates the file Chrome's crash reporter expects at startup to silence a recurring log error; purely cosmetic, no functional effect"
     # ── security ────────────────────────────────────────────────────────────
     "smb_guest|security|Disable SMB guest access — prevents unauthenticated connections to any shared folders; any SMB client must supply valid credentials"
     "ssh_server|security|Disable inbound SSH server (sshd) — Remote Login is off so no process listens on port 22; outbound ssh connections you initiate are unaffected"
@@ -297,7 +282,6 @@ OPTIM_LIST=(
     "gatekeeper|security|Disable Gatekeeper code-signing checks — allows unsigned and ad-hoc signed binaries to run without Quarantine prompts; intended for dev machines that regularly build and run local unsigned tools"
     "mdns_multicast|security|Suppress mDNS multicast advertising — the machine stops responding to .local name resolution requests from other devices on the LAN; reduces network fingerprinting and lateral discovery"
     "hosts_telemetry|security|Block 11 Apple telemetry hostnames in /etc/hosts via 0.0.0.0 — metrics.icloud.com, xp.apple.com, and similar domains are null-routed at the resolver; stops telemetry at the DNS layer with no firewall required"
-    "pfctl_telemetry|security|Block the same telemetry domains at the kernel packet-filter level via a pfctl anchor LaunchDaemon — complements hosts_telemetry by dropping the packets even if the DNS layer is bypassed; survives OS updates via a persistent LaunchDaemon"
     "alf_firewall|security|Enable Application Layer Firewall with stealth mode — blocks unsolicited inbound connections to all apps; stealth mode drops ICMP ping requests so the machine does not respond to network probes"
 )
 
@@ -684,16 +668,23 @@ apply_tap_to_drag() {
 
 apply_three_finger_drag() {
     local num="$1" desc="$2"
-    local current default="false" optimized="false (MiddleClick uses 3 fingers)"
+    local current default="false (disabled)" optimized="true (enabled)"
     current=$(dfw read com.apple.AppleMultitouchTrackpad TrackpadThreeFingerDrag 2>/dev/null || echo "(not set)")
     _run_item "$num" "three_finger_drag" "$desc" "$current" "$default" "$optimized"
     local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
-    # Default and optimized both disable it; 'd' is a no-op difference here
-    dfw write com.apple.AppleMultitouchTrackpad TrackpadThreeFingerDrag -bool false
-    dfw write com.apple.driver.AppleBluetoothMultitouch.trackpad TrackpadThreeFingerDrag -bool false
-    dfw -currentHost write NSGlobalDomain com.apple.trackpad.threeFingerDragGesture -bool false
-    dfw write com.apple.universalaccess trackpadThreeFingerDragEnabled -bool false 2>/dev/null || true
-    ok "3-finger drag disabled"
+    if [ "$_rc" -eq 2 ]; then
+        dfw write com.apple.AppleMultitouchTrackpad TrackpadThreeFingerDrag -bool false
+        dfw write com.apple.driver.AppleBluetoothMultitouch.trackpad TrackpadThreeFingerDrag -bool false
+        dfw -currentHost write NSGlobalDomain com.apple.trackpad.threeFingerDragGesture -bool false
+        dfw write com.apple.universalaccess trackpadThreeFingerDragEnabled -bool false 2>/dev/null || true
+        ok "3-finger drag reset to macOS default (disabled)"
+    else
+        dfw write com.apple.AppleMultitouchTrackpad TrackpadThreeFingerDrag -bool true
+        dfw write com.apple.driver.AppleBluetoothMultitouch.trackpad TrackpadThreeFingerDrag -bool true
+        dfw -currentHost write NSGlobalDomain com.apple.trackpad.threeFingerDragGesture -bool true
+        dfw write com.apple.universalaccess trackpadThreeFingerDragEnabled -bool true 2>/dev/null || true
+        ok "3-finger drag enabled"
+    fi
 }
 
 apply_three_finger_tap() {
@@ -1854,12 +1845,163 @@ apply_computer_name() {
         warn "Cannot restore original computer name automatically — set in System Settings → General → Sharing"
         return 0
     fi
+    # Prompt for custom name (unless --yes was passed, in which case use MACHETE_COMPUTER_NAME)
+    if [ "$YES_ALL" = false ] && [ "$_accept_all" = false ]; then
+        printf "  Enter computer name [%s]: " "$NAME"
+        local input
+        read -r input < /dev/tty
+        [ -n "$input" ] && NAME="$input"
+    fi
     sudo scutil --set ComputerName  "$NAME"
     sudo scutil --set LocalHostName "$NAME"
     sudo scutil --set HostName      "$NAME"
-    dfw write NSGlobalDomain NSUserName "$NAME" 2>/dev/null || true
     sudo defaults write /Library/Preferences/SystemConfiguration/com.apple.smb.server NetBIOSName -string "$NAME"
     ok "Computer name set to $NAME"
+}
+
+apply_night_shift() {
+    local num="$1" desc="$2"
+    local CB_PLIST="/var/root/Library/Preferences/com.apple.CoreBrightness.plist"
+    local current default="off (no schedule)" optimized="on 24/7 (schedule 00:00–23:59, normal warmth)"
+
+    # Read current Night Shift status
+    if command -v /usr/libexec/PlistBuddy > /dev/null 2>&1 && [ -f "$CB_PLIST" ]; then
+        local _ns_enabled
+        _ns_enabled=$(/usr/libexec/PlistBuddy -c "Print :CBUser-0:CBBlueLightReductionCCTTargetRaw" "$CB_PLIST" 2>/dev/null || echo "?")
+        current="CCT target=${_ns_enabled}"
+    else
+        current="(cannot read — may need first run)"
+    fi
+
+    _run_item "$num" "night_shift" "$desc" "$current" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
+
+    if [ "$_rc" -eq 2 ]; then
+        # Restore default: disable Night Shift schedule
+        sudo /usr/libexec/PlistBuddy \
+            -c "Set :CBUser-0:CBBlueReductionStatus:AutoBlueReductionEnabled 0" \
+            -c "Set :CBUser-0:CBBlueReductionStatus:BlueReductionEnabled 0" \
+            -c "Set :CBUser-0:CBBlueReductionStatus:BlueReductionMode 0" \
+            "$CB_PLIST" 2>/dev/null || true
+        sudo killall -HUP corebrightnessd 2>/dev/null || true
+        ok "Night Shift disabled (macOS default)"
+    else
+        # Enable Night Shift 24/7:
+        # Mode 2 = custom schedule; schedule from 00:00 to 23:59; max warmth
+        # Create entries if they don't exist, then set them
+        if [ ! -f "$CB_PLIST" ]; then
+            warn "CoreBrightness plist not found at $CB_PLIST — attempting alternative method"
+            # Fall back to user-level plist
+            CB_PLIST="$REAL_HOME/Library/Preferences/com.apple.CoreBrightness.plist"
+        fi
+
+        # Ensure the dictionary structure exists
+        sudo /usr/libexec/PlistBuddy \
+            -c "Add :CBUser-0 dict" "$CB_PLIST" 2>/dev/null || true
+        sudo /usr/libexec/PlistBuddy \
+            -c "Add :CBUser-0:CBBlueReductionStatus dict" "$CB_PLIST" 2>/dev/null || true
+        sudo /usr/libexec/PlistBuddy \
+            -c "Add :CBUser-0:CBBlueReductionStatus:AutoBlueReductionEnabled integer 1" "$CB_PLIST" 2>/dev/null || true
+        sudo /usr/libexec/PlistBuddy \
+            -c "Add :CBUser-0:CBBlueReductionStatus:BlueReductionEnabled integer 1" "$CB_PLIST" 2>/dev/null || true
+        sudo /usr/libexec/PlistBuddy \
+            -c "Add :CBUser-0:CBBlueReductionStatus:BlueReductionMode integer 2" "$CB_PLIST" 2>/dev/null || true
+        sudo /usr/libexec/PlistBuddy \
+            -c "Add :CBUser-0:CBBlueReductionStatus:BlueReductionSunScheduleAllowed bool false" "$CB_PLIST" 2>/dev/null || true
+
+        # Set values (in case they already exist)
+        sudo /usr/libexec/PlistBuddy \
+            -c "Set :CBUser-0:CBBlueReductionStatus:AutoBlueReductionEnabled 1" \
+            -c "Set :CBUser-0:CBBlueReductionStatus:BlueReductionEnabled 1" \
+            -c "Set :CBUser-0:CBBlueReductionStatus:BlueReductionMode 2" \
+            -c "Set :CBUser-0:CBBlueReductionStatus:BlueReductionSunScheduleAllowed false" \
+            "$CB_PLIST" 2>/dev/null || true
+
+        # Custom schedule: start at 00:00 (hour=0, minute=0), end at 23:59 (hour=23, minute=59)
+        sudo /usr/libexec/PlistBuddy \
+            -c "Add :CBUser-0:CBBlueReductionStatus:BlueLightReductionSchedule dict" "$CB_PLIST" 2>/dev/null || true
+        sudo /usr/libexec/PlistBuddy \
+            -c "Add :CBUser-0:CBBlueReductionStatus:BlueLightReductionSchedule:DayStartHour integer 0" "$CB_PLIST" 2>/dev/null || true
+        sudo /usr/libexec/PlistBuddy \
+            -c "Add :CBUser-0:CBBlueReductionStatus:BlueLightReductionSchedule:DayStartMinute integer 0" "$CB_PLIST" 2>/dev/null || true
+        sudo /usr/libexec/PlistBuddy \
+            -c "Add :CBUser-0:CBBlueReductionStatus:BlueLightReductionSchedule:NightStartHour integer 0" "$CB_PLIST" 2>/dev/null || true
+        sudo /usr/libexec/PlistBuddy \
+            -c "Add :CBUser-0:CBBlueReductionStatus:BlueLightReductionSchedule:NightStartMinute integer 0" "$CB_PLIST" 2>/dev/null || true
+
+        sudo /usr/libexec/PlistBuddy \
+            -c "Set :CBUser-0:CBBlueReductionStatus:BlueLightReductionSchedule:DayStartHour 23" \
+            -c "Set :CBUser-0:CBBlueReductionStatus:BlueLightReductionSchedule:DayStartMinute 59" \
+            -c "Set :CBUser-0:CBBlueReductionStatus:BlueLightReductionSchedule:NightStartHour 0" \
+            -c "Set :CBUser-0:CBBlueReductionStatus:BlueLightReductionSchedule:NightStartMinute 0" \
+            "$CB_PLIST" 2>/dev/null || true
+
+        # Set normal warmth (CCT target: scale is ~2700 max warmth to ~4000 least warmth; 3400 is middle of slider)
+        sudo /usr/libexec/PlistBuddy \
+            -c "Add :CBUser-0:CBBlueLightReductionCCTTargetRaw real 3400" "$CB_PLIST" 2>/dev/null || true
+        sudo /usr/libexec/PlistBuddy \
+            -c "Set :CBUser-0:CBBlueLightReductionCCTTargetRaw 3400" "$CB_PLIST" 2>/dev/null || true
+
+        # Restart CoreBrightness daemon to apply changes
+        sudo killall -HUP corebrightnessd 2>/dev/null || \
+            sudo launchctl kickstart -k system/com.apple.corebrightnessd 2>/dev/null || true
+
+        ok "Night Shift enabled 24/7 (schedule 00:00–23:59, normal warmth)"
+        log "  Note: If Night Shift doesn't activate immediately, toggle it once in System Settings → Displays → Night Shift"
+    fi
+}
+
+apply_notifications_disable() {
+    local num="$1" desc="$2"
+    local NC_PREFS="$REAL_HOME/Library/Preferences/com.apple.ncprefs.plist"
+    local current default="per-app defaults (banners/alerts enabled)" optimized="all notifications disabled"
+    if [ -f "$NC_PREFS" ]; then
+        local app_count
+        app_count=$(sudo -u "$REAL_USER" /usr/libexec/PlistBuddy -c "Print :apps" "$NC_PREFS" 2>/dev/null | grep -c "Dict" || echo "0")
+        current="${app_count} apps with notification settings"
+    else
+        current="(nc prefs not found)"
+    fi
+    _run_item "$num" "notifications_disable" "$desc" "$current" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
+    if [ "$_rc" -eq 2 ]; then
+        # Restore default: remove the global disable flag and let per-app defaults apply
+        dfw write com.apple.ncprefs content_visibility -dict
+        # Re-enable Do Not Disturb schedule removal
+        dfw delete com.apple.notificationcenterui dndMirroring 2>/dev/null || true
+        dfw delete com.apple.notificationcenterui dndStart 2>/dev/null || true
+        dfw delete com.apple.notificationcenterui dndEnd 2>/dev/null || true
+        ok "Notification settings reset — per-app defaults restored"
+    else
+        # Disable notification centre entirely via Do Not Disturb always-on
+        # Set DND to cover 00:00 to 23:59 (effectively always on)
+        dfw write com.apple.ncprefs dnd_prefs -dict \
+            dndDisplayLock -bool true \
+            dndDisplaySleep -bool true \
+            dndMirrored -bool true \
+            facetimeCanBreakDND -bool false \
+            repeatedFacetimeCallsBreaksDND -bool false
+        # Iterate over all apps in ncprefs and set flags to suppress all notifications
+        # flags value 0 = notifications off for that app (no banners, no badges, no sounds)
+        if [ -f "$NC_PREFS" ]; then
+            local idx=0
+            while sudo -u "$REAL_USER" /usr/libexec/PlistBuddy \
+                -c "Print :apps:${idx}:bundle-id" "$NC_PREFS" > /dev/null 2>&1; do
+                sudo -u "$REAL_USER" /usr/libexec/PlistBuddy \
+                    -c "Set :apps:${idx}:flags 0" "$NC_PREFS" 2>/dev/null || true
+                idx=$((idx + 1))
+            done
+            ok "Disabled notifications for $idx apps in $NC_PREFS"
+        fi
+        # Also set global Do Not Disturb via Notification Center preferences
+        dfw write com.apple.notificationcenterui dndMirroring -bool true
+        dfw write com.apple.notificationcenterui dndStart -float 0
+        dfw write com.apple.notificationcenterui dndEnd -float 1440
+        # Disable notification centre widget and banner display
+        dfw write com.apple.notificationcenterui bannerTime -int 0
+        ok "All notifications disabled (DND always-on + per-app flags zeroed)"
+        log "  Note: macOS Focus/DND may need manual confirmation in System Settings → Focus"
+    fi
 }
 
 # ── POWER ──────────────────────────────────────────────────────────────────
@@ -2059,50 +2201,6 @@ apply_sysctl_perf() {
     fi
 }
 
-apply_launchd_maxfiles() {
-    local num="$1" desc="$2"
-    local PLIST="/Library/LaunchDaemons/limit.maxfiles.plist"
-    local _soft _hard
-    _soft=$(launchctl limit maxfiles 2>/dev/null | awk '{print $2}')
-    _hard=$(launchctl limit maxfiles 2>/dev/null | awk '{print $3}')
-    local current="soft=${_soft} hard=${_hard}" default="soft=256 hard=unlimited" optimized="soft=65536 hard=unlimited"
-    _run_item "$num" "launchd_maxfiles" "$desc" "$current" "$default" "$optimized"
-    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
-    if [ "$_rc" -eq 2 ]; then
-        sudo launchctl bootout system/limit.maxfiles 2>/dev/null || true
-        sudo rm -f "$PLIST"
-        ok "launchd maxfiles LaunchDaemon removed — soft limit reverts to 256 on next boot"
-    else
-        sudo tee "$PLIST" > /dev/null << 'MAXEOF'
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>Label</key>
-    <string>limit.maxfiles</string>
-    <key>ProgramArguments</key>
-    <array>
-        <string>/bin/launchctl</string>
-        <string>limit</string>
-        <string>maxfiles</string>
-        <string>65536</string>
-        <string>unlimited</string>
-    </array>
-    <key>RunAtLoad</key>
-    <true/>
-    <key>ServiceIPC</key>
-    <false/>
-</dict>
-</plist>
-MAXEOF
-        sudo launchctl bootout  system/limit.maxfiles 2>/dev/null || true
-        sudo launchctl bootstrap system "$PLIST"
-        # Apply immediately to the running system without requiring a reboot
-        sudo launchctl limit maxfiles 65536 unlimited 2>/dev/null || true
-        ok "maxfiles soft limit → 65536 (active now + persists via LaunchDaemon at boot)"
-    fi
-}
-
 apply_iogpu_wired_limit() {
     local num="$1" desc="$2"
     local _mem_mb _optimized_mb
@@ -2156,27 +2254,6 @@ SCTLEOF
     fi
 }
 
-apply_chrome_doh() {
-    local num="$1" desc="$2"
-    local POLICY_USER="${SUDO_USER:-$(id -un)}"
-    local PLIST="/Library/Managed Preferences/$POLICY_USER/com.google.Chrome.plist"
-    local current default="(unmanaged)" optimized="DnsOverHttpsMode=off"
-    [ -f "$PLIST" ] && current=$(sudo /usr/libexec/PlistBuddy -c "Print :DnsOverHttpsMode" "$PLIST" 2>/dev/null || echo "not set") || current="policy not present"
-    _run_item "$num" "chrome_doh" "$desc" "$current" "$default" "$optimized"
-    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
-    if [ "$_rc" -eq 2 ]; then
-        sudo /usr/libexec/PlistBuddy -c "Delete :DnsOverHttpsMode" "$PLIST" 2>/dev/null || true
-        ok "Chrome DoH policy removed (Chrome default: unmanaged)"
-    else
-        sudo mkdir -p "/Library/Managed Preferences/$POLICY_USER"
-        sudo /usr/libexec/PlistBuddy \
-            -c "Add :DnsOverHttpsMode string off" "$PLIST" 2>/dev/null || \
-        sudo /usr/libexec/PlistBuddy \
-            -c "Set :DnsOverHttpsMode off" "$PLIST"
-        ok "Chrome DoH = off (managed policy)"
-    fi
-}
-
 apply_dns_flush() {
     local num="$1" desc="$2"
     local current="(live DNS cache)" default="(flush)" optimized="(flush)"
@@ -2185,203 +2262,6 @@ apply_dns_flush() {
     sudo dscacheutil -flushcache
     sudo killall -HUP mDNSResponder 2>/dev/null || true
     ok "DNS cache flushed"
-}
-
-# ── CHROME ────────────────────────────────────────────────────────────────
-
-_chrome_plist() {
-    local POLICY_USER="${SUDO_USER:-$(id -un)}"
-    echo "/Library/Managed Preferences/$POLICY_USER/com.google.Chrome.plist"
-}
-
-_chrome_read() {
-    local PLIST="$1" key="$2"
-    [ -f "$PLIST" ] && sudo /usr/libexec/PlistBuddy -c "Print :${key}" "$PLIST" 2>/dev/null || echo "(not set)"
-}
-
-_chrome_write_int() {
-    local PLIST="$1" key="$2" val="$3"
-    sudo mkdir -p "$(dirname "$PLIST")"
-    sudo /usr/libexec/PlistBuddy -c "Add :${key} integer ${val}" "$PLIST" 2>/dev/null || \
-    sudo /usr/libexec/PlistBuddy -c "Set :${key} ${val}" "$PLIST"
-}
-
-_chrome_write_bool() {
-    local PLIST="$1" key="$2" val="$3"
-    sudo mkdir -p "$(dirname "$PLIST")"
-    sudo /usr/libexec/PlistBuddy -c "Add :${key} bool ${val}" "$PLIST" 2>/dev/null || \
-    sudo /usr/libexec/PlistBuddy -c "Set :${key} ${val}" "$PLIST"
-}
-
-_chrome_delete() {
-    local PLIST="$1" key="$2"
-    [ -f "$PLIST" ] && sudo /usr/libexec/PlistBuddy -c "Delete :${key}" "$PLIST" 2>/dev/null || true
-}
-
-apply_chrome_memory_saver() {
-    local num="$1" desc="$2"
-    local PLIST; PLIST=$(_chrome_plist)
-    local current default="1 (moderate, unmanaged)" optimized="2 (extreme)"
-    current=$(_chrome_read "$PLIST" "MemorySaverModeSavings")
-    _run_item "$num" "chrome_memory_saver" "$desc" "$current" "$default" "$optimized"
-    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
-    if [ "$_rc" -eq 2 ]; then
-        _chrome_delete "$PLIST" "MemorySaverModeSavings"
-        ok "Chrome MemorySaverModeSavings policy removed"
-    else
-        _chrome_write_int "$PLIST" "MemorySaverModeSavings" 2
-        ok "Chrome Memory Saver = extreme (managed policy)"
-    fi
-}
-
-apply_chrome_tab_discard() {
-    local num="$1" desc="$2"
-    local PLIST; PLIST=$(_chrome_plist)
-    local current default="true (unmanaged)" optimized="true"
-    current=$(_chrome_read "$PLIST" "AutomaticTabDiscarding")
-    _run_item "$num" "chrome_tab_discard" "$desc" "$current" "$default" "$optimized"
-    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
-    if [ "$_rc" -eq 2 ]; then
-        _chrome_delete "$PLIST" "AutomaticTabDiscarding"
-        ok "Chrome AutomaticTabDiscarding policy removed"
-    else
-        _chrome_write_bool "$PLIST" "AutomaticTabDiscarding" true
-        ok "Chrome auto tab discarding ON (managed policy)"
-    fi
-}
-
-apply_chrome_high_efficiency() {
-    local num="$1" desc="$2"
-    local PLIST; PLIST=$(_chrome_plist)
-    local current default="(user-controlled)" optimized="2 (always on)"
-    current=$(_chrome_read "$PLIST" "HighEfficiencyModeEnabled")
-    _run_item "$num" "chrome_high_efficiency" "$desc" "$current" "$default" "$optimized"
-    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
-    if [ "$_rc" -eq 2 ]; then
-        _chrome_delete "$PLIST" "HighEfficiencyModeEnabled"
-        ok "Chrome HighEfficiencyModeEnabled policy removed"
-    else
-        _chrome_write_int "$PLIST" "HighEfficiencyModeEnabled" 2
-        ok "Chrome High Efficiency mode = always on (managed policy)"
-    fi
-}
-
-apply_chrome_site_isolation() {
-    local num="$1" desc="$2"
-    local PLIST; PLIST=$(_chrome_plist)
-    local _spi _iso
-    _spi=$(_chrome_read "$PLIST" "SitePerProcess")
-    _iso=$(_chrome_read "$PLIST" "IsolateOrigins")
-    local current="SitePerProcess=${_spi} IsolateOrigins=${_iso}" default="SitePerProcess=true (unmanaged)" optimized="SitePerProcess=false + IsolateOrigins=mail.google.com"
-    _run_item "$num" "chrome_site_isolation" "$desc" "$current" "$default" "$optimized"
-    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
-    if [ "$_rc" -eq 2 ]; then
-        _chrome_delete "$PLIST" "SitePerProcess"
-        _chrome_delete "$PLIST" "IsolateOrigins"
-        ok "Chrome site isolation policy removed (Chrome default: SitePerProcess=true)"
-    else
-        _chrome_write_bool "$PLIST" "SitePerProcess" false
-        sudo mkdir -p "$(dirname "$PLIST")"
-        sudo /usr/libexec/PlistBuddy -c "Add :IsolateOrigins string https://mail.google.com" "$PLIST" 2>/dev/null || \
-        sudo /usr/libexec/PlistBuddy -c "Set :IsolateOrigins https://mail.google.com" "$PLIST"
-        ok "Chrome SitePerProcess=false, IsolateOrigins=mail.google.com (managed policy)"
-    fi
-}
-
-apply_chrome_background_mode() {
-    local num="$1" desc="$2"
-    local PLIST; PLIST=$(_chrome_plist)
-    local current default="true (runs in background)" optimized="false (exits fully)"
-    current=$(_chrome_read "$PLIST" "BackgroundModeEnabled")
-    _run_item "$num" "chrome_background_mode" "$desc" "$current" "$default" "$optimized"
-    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
-    if [ "$_rc" -eq 2 ]; then
-        _chrome_delete "$PLIST" "BackgroundModeEnabled"
-        ok "Chrome BackgroundModeEnabled policy removed"
-    else
-        _chrome_write_bool "$PLIST" "BackgroundModeEnabled" false
-        ok "Chrome background mode = OFF (managed policy)"
-    fi
-}
-
-apply_chrome_startup_boost() {
-    local num="$1" desc="$2"
-    local PLIST; PLIST=$(_chrome_plist)
-    local current default="(N/A on macOS)" optimized="false"
-    current=$(_chrome_read "$PLIST" "StartupBoostEnabled")
-    _run_item "$num" "chrome_startup_boost" "$desc" "$current" "$default" "$optimized"
-    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
-    if [ "$_rc" -eq 2 ]; then
-        _chrome_delete "$PLIST" "StartupBoostEnabled"
-        ok "Chrome StartupBoostEnabled policy removed"
-    else
-        _chrome_write_bool "$PLIST" "StartupBoostEnabled" false
-        ok "Chrome startup boost = OFF (managed policy)"
-    fi
-}
-
-apply_chrome_battery_saver() {
-    local num="$1" desc="$2"
-    local PLIST; PLIST=$(_chrome_plist)
-    local current default="(user-controlled)" optimized="3 (always on)"
-    current=$(_chrome_read "$PLIST" "BatterySaverModeAvailability")
-    _run_item "$num" "chrome_battery_saver" "$desc" "$current" "$default" "$optimized"
-    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
-    if [ "$_rc" -eq 2 ]; then
-        _chrome_delete "$PLIST" "BatterySaverModeAvailability"
-        ok "Chrome BatterySaverModeAvailability policy removed"
-    else
-        _chrome_write_int "$PLIST" "BatterySaverModeAvailability" 3
-        ok "Chrome Battery Saver = always on (managed policy)"
-    fi
-}
-
-apply_chrome_iframe_throttle() {
-    local num="$1" desc="$2"
-    local PLIST; PLIST=$(_chrome_plist)
-    local current default="true (Chrome default)" optimized="true (enforced)"
-    current=$(_chrome_read "$PLIST" "ThrottleNonVisibleCrossOriginIframesEnabled")
-    _run_item "$num" "chrome_iframe_throttle" "$desc" "$current" "$default" "$optimized"
-    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
-    if [ "$_rc" -eq 2 ]; then
-        _chrome_delete "$PLIST" "ThrottleNonVisibleCrossOriginIframesEnabled"
-        ok "Chrome iframe throttle policy removed"
-    else
-        _chrome_write_bool "$PLIST" "ThrottleNonVisibleCrossOriginIframesEnabled" true
-        ok "Chrome iframe throttle = ON (managed policy)"
-    fi
-}
-
-apply_chrome_disk_cache() {
-    local num="$1" desc="$2"
-    local PLIST; PLIST=$(_chrome_plist)
-    local current default="~320 MB (auto-sized)" optimized="1073741824 (1 GB)"
-    current=$(_chrome_read "$PLIST" "DiskCacheSize")
-    _run_item "$num" "chrome_disk_cache" "$desc" "$current" "$default" "$optimized"
-    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
-    if [ "$_rc" -eq 2 ]; then
-        _chrome_delete "$PLIST" "DiskCacheSize"
-        ok "Chrome DiskCacheSize policy removed (Chrome will auto-size)"
-    else
-        _chrome_write_int "$PLIST" "DiskCacheSize" 1073741824
-        ok "Chrome disk cache = 1 GB (managed policy)"
-    fi
-}
-
-apply_chrome_back_forward_cache() {
-    local num="$1" desc="$2"
-    local PLIST; PLIST=$(_chrome_plist)
-    local current default="true (Chrome default)" optimized="true (enforced)"
-    current=$(_chrome_read "$PLIST" "BackForwardCacheEnabled")
-    _run_item "$num" "chrome_back_forward_cache" "$desc" "$current" "$default" "$optimized"
-    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
-    if [ "$_rc" -eq 2 ]; then
-        _chrome_delete "$PLIST" "BackForwardCacheEnabled"
-        ok "Chrome BackForwardCacheEnabled policy removed"
-    else
-        _chrome_write_bool "$PLIST" "BackForwardCacheEnabled" true
-        ok "Chrome Back/Forward cache = ON (managed policy)"
-    fi
 }
 
 # ── UPDATES ────────────────────────────────────────────────────────────────
@@ -2415,64 +2295,6 @@ apply_apple_autoupdate() {
     fi
 }
 
-apply_chrome_keystone() {
-    local num="$1" desc="$2"
-    local _active=0
-    for plist_label in \
-        "gui/$REAL_UID/com.google.keystone.agent:/Library/LaunchAgents/com.google.keystone.agent.plist" \
-        "gui/$REAL_UID/com.google.keystone.xpcservice:/Library/LaunchAgents/com.google.keystone.xpcservice.plist" \
-        "system/com.google.keystone.daemon:/Library/LaunchDaemons/com.google.keystone.daemon.plist" \
-        "system/com.google.GoogleUpdater.wake.system:/Library/LaunchDaemons/com.google.GoogleUpdater.wake.system.plist"
-    do
-        [ -f "${plist_label##*:}" ] && _active=$((_active+1))
-    done
-    local current="${_active}/4 Keystone agents present" default="Keystone enabled" optimized="all 4 Keystone agents disabled"
-    _run_item "$num" "chrome_keystone" "$desc" "$current" "$default" "$optimized"
-    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
-    if [ "$_rc" -eq 2 ]; then
-        dfw write com.google.Keystone ShouldCheckForUpdates -bool true 2>/dev/null || true
-        ok "Chrome Keystone re-enabled (ShouldCheckForUpdates=true)"
-    else
-        for plist_label in \
-            "gui/$REAL_UID/com.google.keystone.agent:/Library/LaunchAgents/com.google.keystone.agent.plist" \
-            "gui/$REAL_UID/com.google.keystone.xpcservice:/Library/LaunchAgents/com.google.keystone.xpcservice.plist" \
-            "system/com.google.keystone.daemon:/Library/LaunchDaemons/com.google.keystone.daemon.plist" \
-            "system/com.google.GoogleUpdater.wake.system:/Library/LaunchDaemons/com.google.GoogleUpdater.wake.system.plist"
-        do
-            local domain_label="${plist_label%%:*}"
-            local plist_path="${plist_label##*:}"
-            if [ -f "$plist_path" ]; then
-                launchctl disable "$domain_label" 2>/dev/null || true
-                launchctl bootout "$domain_label" 2>/dev/null || true
-                log "  Disabled: $domain_label"
-            fi
-        done
-        dfw write com.google.Keystone ShouldCheckForUpdates -bool false 2>/dev/null || true
-        sudo killall GoogleUpdater 2>/dev/null || true
-        ok "Chrome Keystone disabled"
-    fi
-}
-
-apply_edge_updater() {
-    local num="$1" desc="$2"
-    local PLIST="$REAL_HOME/Library/LaunchAgents/com.microsoft.EdgeUpdater.wake.plist"
-    local current default="enabled (if installed)" optimized="disabled"
-    [ -f "$PLIST" ] && current="present" || current="not installed"
-    _run_item "$num" "edge_updater" "$desc" "$current" "$default" "$optimized"
-    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
-    if [ "$_rc" -eq 2 ]; then
-        [ -f "$PLIST" ] && launchctl enable "gui/$REAL_UID/com.microsoft.EdgeUpdater.wake" 2>/dev/null || true
-        ok "Edge updater re-enabled"
-    else
-        if [ -f "$PLIST" ]; then
-            launchctl disable "gui/$REAL_UID/com.microsoft.EdgeUpdater.wake" 2>/dev/null || true
-            launchctl bootout "gui/$REAL_UID/com.microsoft.EdgeUpdater.wake" 2>/dev/null || true
-        fi
-        sudo killall EdgeUpdater 2>/dev/null || true
-        ok "Edge updater disabled"
-    fi
-}
-
 apply_airdrop() {
     local num="$1" desc="$2"
     local current default="false (AirDrop on)" optimized="true (AirDrop off)"
@@ -2498,18 +2320,6 @@ apply_handoff_continuity() {
     dfw -currentHost write com.apple.coreservices.useractivityd ActivityReceivingAllowed -bool "$_val"
     dfw -currentHost write com.apple.coreservices.useractivityd ActivityAdvertisingAllowed -bool "$_val"
     ok "Handoff/Continuity set to ${_val}"
-}
-
-apply_chrome_crashpad() {
-    local num="$1" desc="$2"
-    local CPDIR="$REAL_HOME/Library/Application Support/Google/RLZ/Crashpad"
-    local current default="(absent)" optimized="settings.dat created"
-    [ -f "$CPDIR/settings.dat" ] && current="already exists" || current="missing (causes log error)"
-    _run_item "$num" "chrome_crashpad" "$desc" "$current" "$default" "$optimized"
-    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
-    sudo -u "$REAL_USER" mkdir -p "$CPDIR"
-    sudo -u "$REAL_USER" touch "$CPDIR/settings.dat"
-    ok "Chrome Crashpad settings.dat created"
 }
 
 # ── SECURITY ───────────────────────────────────────────────────────────────
@@ -2626,61 +2436,6 @@ apply_hosts_telemetry() {
         done
         sudo killall -HUP mDNSResponder 2>/dev/null || true
         ok "Added $added telemetry entries to /etc/hosts"
-    fi
-}
-
-apply_pfctl_telemetry() {
-    local num="$1" desc="$2"
-    local ANCHOR="/etc/pf.anchors/telemetry-block"
-    local DAEMON_PLIST="/Library/LaunchDaemons/local.telemetry-pf.plist"
-    local current default="not installed" optimized="LaunchDaemon loads anchor at every boot"
-    [ -f "$DAEMON_PLIST" ] && current="LaunchDaemon present" || current="not installed"
-    _run_item "$num" "pfctl_telemetry" "$desc" "$current" "$default" "$optimized"
-    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
-    if [ "$_rc" -eq 2 ]; then
-        sudo launchctl bootout system/local.telemetry-pf 2>/dev/null || true
-        sudo rm -f "$DAEMON_PLIST" "$ANCHOR"
-        ok "pfctl telemetry block removed"
-    else
-        sudo tee "$ANCHOR" > /dev/null << 'PFEOF'
-# Block outbound telemetry — managed by optimizations.sh
-# Rollback: launchctl bootout system/local.telemetry-pf
-#           rm /Library/LaunchDaemons/local.telemetry-pf.plist
-#           rm /etc/pf.anchors/telemetry-block
-block out quick proto { tcp udp } to metrics.icloud.com
-block out quick proto { tcp udp } to feedbackws.icloud.com
-block out quick proto { tcp udp } to xp.apple.com
-block out quick proto { tcp udp } to diagassets.apple.com
-block out quick proto { tcp udp } to api.smoot.apple.com
-block out quick proto { tcp udp } to pancake.apple.com
-PFEOF
-        sudo tee "$DAEMON_PLIST" > /dev/null << 'DAEMONEOF'
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>Label</key>
-    <string>local.telemetry-pf</string>
-    <key>ProgramArguments</key>
-    <array>
-        <string>/sbin/pfctl</string>
-        <string>-e</string>
-        <string>-f</string>
-        <string>/etc/pf.anchors/telemetry-block</string>
-    </array>
-    <key>RunAtLoad</key>
-    <true/>
-    <key>StandardErrorPath</key>
-    <string>/var/log/telemetry-pf.log</string>
-    <key>StandardOutPath</key>
-    <string>/var/log/telemetry-pf.log</string>
-</dict>
-</plist>
-DAEMONEOF
-        sudo launchctl bootout system/local.telemetry-pf 2>/dev/null || true
-        sudo launchctl bootstrap system "$DAEMON_PLIST"
-        ok "pfctl telemetry block active via LaunchDaemon (survives OS updates)"
-        ok "Rollback: sudo launchctl bootout system/local.telemetry-pf && sudo rm $DAEMON_PLIST $ANCHOR"
     fi
 }
 
