@@ -2,18 +2,21 @@
 
 A macOS debloating and tuning toolkit for Apple Silicon, targeting macOS 26.x (Sequoia/Tahoe).
 
-Removes unwanted system binaries from the Sealed System Volume (SSV), disables background agents and daemons, applies 125 confirmed system-preference optimizations, disables 116 non-essential system services, and bundles a memory/CPU/GPU benchmark suite to measure before-and-after impact.
+Removes unwanted system binaries from the Sealed System Volume (SSV), disables background agents and daemons, applies 116 confirmed system-preference optimizations, disables 171 non-essential system services, and bundles a memory/CPU/GPU benchmark suite to measure before-and-after impact.
 
 ---
 
 > [!WARNING]
-> **This toolkit makes irreversible changes to macOS internals.**
+> **`debloat.sh` makes irreversible changes to macOS internals.**
 >
 > - Requires **SIP disabled** and **authenticated-root disabled** (Recovery-only operations)
 > - Modifies the **Sealed System Volume** — macOS software updates **will no longer work** after running `debloat.sh`
 > - A failed or incomplete run can leave the system **unbootable**
 > - A restore snapshot is automatically created before any changes; keep the `restore.sh` script accessible from your external drive
 > - **Do not run on a machine you are not prepared to reinstall**
+
+> [!NOTE]
+> **`optimize.sh` and `disable.sh` are safe to run on any Mac.** They do not modify the system volume, do not require SIP to be disabled, and every change is individually reversible. Use `--dry-run` to preview changes without applying anything. Both scripts require `sudo` for applying changes but can preview and list without elevated privileges.
 
 ---
 
@@ -23,8 +26,8 @@ Removes unwanted system binaries from the Sealed System Volume (SSV), disables b
 |--------|---------|
 | `debloat.sh` | Main executor: removes SSV binaries, disables agents/daemons, cleans user data |
 | `manifest.yaml` | Declarative feature manifest: ~40 features with apps, frameworks, agents, daemons, plists, user containers |
-| `optimize.sh` | 125 `defaults write` / `sysctl` / `pmset` optimizations across 11 groups |
-| `disable.sh` | 116 non-essential service disables across 11 groups: telemetry, Siri, iCloud, media, Apple Intelligence, App Store engagement, mail, social, gaming, MDM, and updates. Every item is reversible via `--restore` |
+| `optimize.sh` | 116 `defaults write` / `sysctl` / `pmset` optimizations across 11 groups |
+| `disable.sh` | 171 non-essential service disables across 12 groups: telemetry, Siri, iCloud, media, Apple Intelligence, App Store engagement, mail, social, autolaunch, gaming, MDM, and updates. Every item is reversible via `--restore` |
 | `cleanup.sh` | Post-debloat cleanup: Spotlight, LaunchServices, CoreSpotlight, icon cache |
 | `restore.sh` | Recovery Terminal script: lists snapshots, auto-detects volumes, restores boot target |
 | `uninstall.sh` | Removes all user-installed software: apps, Homebrew, pip, npm, kexts, agents |
@@ -57,8 +60,9 @@ Before running any script that modifies the SSV (`debloat.sh`):
 
 ### Preview everything (no changes made)
 ```bash
+./optimize.sh --dry-run
+./disable.sh --dry-run
 sudo ./debloat.sh --dry-run
-sudo ./optimize.sh --dry-run
 ```
 
 ### Debloat specific features
@@ -75,10 +79,10 @@ sudo ./debloat.sh --yes
 
 ### Apply optimizations
 ```bash
-# List all 125 keys grouped by category
+# List all 116 keys grouped by category
 ./optimize.sh --list
 
-# Preview all
+# Preview all (no sudo needed)
 ./optimize.sh --dry-run
 
 # Apply a single group interactively
@@ -93,10 +97,10 @@ sudo ./optimize.sh --yes --skip timezone,computer_name,dock_strip,wallpaper_blac
 
 ### Disable non-essential services
 ```bash
-# List all 116 services with group and method
+# List all 171 services with group and method
 ./disable.sh --list
 
-# Preview all (no changes)
+# Preview all (no sudo needed)
 ./disable.sh --dry-run
 
 # Disable everything
@@ -174,13 +178,12 @@ Run `./optimize.sh --list` for the full annotated list. Groups:
 | `spotlight` | 6 | Boot-volume-only indexing, Apps+Calculator+Settings categories |
 | `animations` | 7 | All window/scroll/motion animations disabled |
 | `dock` | 12 | Auto-hide instant, no bounce, minimize into icon, hot corners off |
-| `finder` | 26 | Hidden files, path bar, list view, no iCloud, DS_Store cleanup |
-| `ui` | 13 | Maximize on green button, no widgets, ISO 8601 clock, black wallpaper |
-| `power` | 10 | AC/battery sleep timers, Power Nap off, clamshell mode |
+| `finder` | 28 | Hidden files, path bar, list view, no iCloud, DS_Store cleanup |
+| `ui` | 20 | Night Shift 24/7, no widgets, disable login reopen, widget cleanup, ISO 8601 clock, black wallpaper |
+| `power` | 12 | AC/battery sleep timers, Power Nap off, clamshell mode, hibernate mode |
 | `network` | 7 | 16 MB socket buffer, 1 MB TCP send/recv, sysctl persist |
-| `updates` | 6 | Apple SU off, Chrome Keystone off, Edge updater off, AirDrop off |
-| `security` | 8 | ALF firewall+stealth, Gatekeeper off, pfctl telemetry block |
-| `chrome` | 10 | Memory Saver extreme, tab discard, battery saver, 1 GB disk cache |
+| `updates` | 3 | Apple SU off, AirDrop off, Handoff off |
+| `security` | 7 | ALF firewall+stealth, Gatekeeper off, mDNS suppress, telemetry hosts block |
 
 ---
 
@@ -190,17 +193,18 @@ Run `./disable.sh --list` for the full annotated list. Groups:
 
 | Group | Items | What is disabled |
 |-------|-------|-----------------|
-| `telemetry` | 20 | Analytics, Biome, diagnostics, crash reporting, cloud telemetry, geo analytics |
-| `siri` | 15 | Siri daemon stack, NLP, knowledge graph, TTS, suggestions, routine learning |
-| `icloud` | 10 | iCloud Drive, Photos, CloudKit, push notifications, account sync |
-| `media` | 10 | iTunes Cloud, AirPlay, AirDrop, Handoff, Continuity Camera, media remote |
-| `apple_intel` | 7 | Generative AI, Private Cloud Compute, model catalog, intelligence context |
+| `telemetry` | 36 | Analytics, Biome, diagnostics, crash reporting, cloud telemetry, geo analytics, MetricKit, spindump, tailspin |
+| `siri` | 22 | Siri daemon stack, NLP, knowledge graph, TTS, suggestions, routine learning, App SSO, voice banking |
+| `icloud` | 18 | iCloud Drive, Photos, CloudKit, push notifications, account sync, Keychain sync, device pairing |
+| `media` | 19 | iTunes Cloud, AirPlay, AirDrop, Handoff, Continuity Camera, media remote, Podcasts, stickers |
+| `apple_intel` | 9 | Generative AI, Private Cloud Compute, model catalog, intelligence context, ML hosting |
 | `appstore` | 11 | Ad targeting, engagement tracking, A/B trials, commerce, promoted content |
 | `mail` | 9 | Mail, Calendar, Contacts, Reminders, iMessage, FaceTime background daemons |
-| `social` | 17 | Maps sync, Weather, Stocks, HomeKit, Find My, photo analysis, social layer |
-| `gaming` | 4 | Game controllers, Game Mode, game policy |
-| `mdm` | 5 | Remote Management daemon and all subscriber services |
-| `updates` | 8 | Software Update auto-check/download, asset subscriptions, model prefetch |
+| `social` | 20 | Maps sync, Weather, Stocks, HomeKit, Find My, photo analysis, social layer, family sharing |
+| `autolaunch` | 3 | Tips daemon, app pre-warming (warmd), speculative app launches |
+| `gaming` | 8 | Game controllers, Game Mode, game policy, NFC, UWB, WiFi P2P |
+| `mdm` | 7 | Remote Management, Managed Settings, app distribution, Lockdown Mode |
+| `updates` | 9 | Software Update auto-check/download, asset subscriptions, timezone updates, fraud defense |
 
 ---
 

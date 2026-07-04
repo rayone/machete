@@ -1,7 +1,7 @@
 #!/bin/bash
 # ==============================================================================
 # OPTIMIZATIONS — macOS 26.4 / Apple M5 Max
-# 115 individually confirmed system preferences and tuning settings.
+# 116 individually confirmed system preferences and tuning settings.
 #
 # USAGE:
 #   sudo ./optimizations.sh [OPTIONS]
