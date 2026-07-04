@@ -45,6 +45,7 @@
 #   appstore     App Store ads, engagement tracking, A/B trials, commerce
 #   mail         Mail, Calendar, Contacts, Reminders background daemons
 #   social       Maps sync, News, Stocks, Weather, Find My, HomeKit
+#   autolaunch   Tips, app pre-warming (warmd), speculative app launches
 #   gaming       Game Center, Game Mode, game controller daemons
 #   mdm          Remote Management, Managed Settings subscriber stack
 #   updates      Software Update auto-check and background download daemons
@@ -282,6 +283,10 @@ DISABLE_LIST=(
     "familycircled|social|launchctl|familycircled — Family Circle daemon; manages Family Sharing membership, shared purchases, parental controls, and Screen Time family sync. Disable: db write + bootout. Restore: db remove. Impact: Family Sharing features stop; no parental control sync."
     "ecosystemd|social|launchctl|ecosystemd — Ecosystem daemon; coordinates cross-device feature availability (Handoff eligibility, Sidecar, Universal Control) by tracking which Apple devices are nearby and their capabilities. Disable: db write + bootout system. Restore: db remove system. Impact: Cross-device feature negotiation stops; Sidecar/Universal Control not advertised."
     "chronod|social|launchctl|chronod — Chrono daemon; manages scheduled Shortcuts automations and calendar-triggered actions. Runs persistently to fire time-based triggers. Disable: db write + bootout. Restore: db remove. Impact: Shortcuts time/calendar automations not triggered."
+    # ── autolaunch ───────────────────────────────────────────────────────────
+    "tipsd|autolaunch|launchctl|tipsd — Tips daemon; wakes on every login via keybag unlock notification, registers with Notification Centre, and periodically fetches tip content from Apple. The primary reason the Tips app appears to auto-launch. Disable: launchctl bootout. Restore: bootstrap. Impact: Tips app never auto-launches; no tip notifications shown."
+    "warmd|autolaunch|launchctl|warmd — App pre-warming system daemon (RunAtLoad); monitors login/logout events and coordinates with warmd_agent to speculatively launch apps the system predicts you will use. Disable: launchctl bootout system. Restore: bootstrap system. Impact: No speculative app launches; apps only start when you explicitly open them."
+    "warmd_agent|autolaunch|launchctl|warmd_agent — App pre-warming user agent; receives predictions from duetexpertd/warmd and actually launches the predicted apps in the background at session start. Disable: launchctl bootout. Restore: bootstrap. Impact: Predicted apps not pre-launched; cold-launch time slightly longer for first use."
     # ── gaming ────────────────────────────────────────────────────────────────
     "gamecontrolleragentd|gaming|launchctl|gamecontrolleragentd — User-domain game controller agent; monitors for connected game controllers and publishes them to the GCController framework. Disable: launchctl bootout. Restore: bootstrap. Impact: Game controllers not discovered by apps using GameController framework."
     "gamecontrollerd|gaming|launchctl|gamecontrollerd — System-domain game controller daemon; handles HID-level controller input routing. Disable: launchctl bootout system. Restore: bootstrap system. Impact: Game controller input not routed to apps."
@@ -346,7 +351,7 @@ build_work_list() {
 # --list
 # ---------------------------------------------------------------------------
 if [ "$LIST_ONLY" = true ]; then
-    header "DISABLE — $TOTAL_ITEMS items across 11 groups"
+    header "DISABLE — $TOTAL_ITEMS items across 12 groups"
     current_group=""
     idx=0
     for entry in "${DISABLE_LIST[@]}"; do
@@ -1203,6 +1208,20 @@ apply_photoanalysisd() {
 
 apply_mediaanalysisd() {
     _lctl "mediaanalysisd" "system" "com.apple.mediaanalysisd"
+}
+
+# ── AUTOLAUNCH ───────────────────────────────────────────────────────────────
+
+apply_tipsd() {
+    _lctl "tipsd" "gui" "com.apple.tipsd"
+}
+
+apply_warmd() {
+    _lctl "warmd" "system" "com.apple.warmd"
+}
+
+apply_warmd_agent() {
+    _lctl "warmd_agent" "gui" "com.apple.warmd_agent"
 }
 
 # ── GAMING ──────────────────────────────────────────────────────────────────

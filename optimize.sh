@@ -1,7 +1,7 @@
 #!/bin/bash
 # ==============================================================================
 # OPTIMIZATIONS — macOS 26.4 / Apple M5 Max
-# 111 individually confirmed system preferences and tuning settings.
+# 115 individually confirmed system preferences and tuning settings.
 #
 # USAGE:
 #   sudo ./optimizations.sh [OPTIONS]
@@ -250,6 +250,10 @@ OPTIM_LIST=(
     "computer_name|ui|Set computer name to MACHETE_COMPUTER_NAME — sets ComputerName, LocalHostName, HostName, and SMB NetBIOSName in one step (edit MACHETE_COMPUTER_NAME at the top of this file)"
     "night_shift|ui|Enable Night Shift 24/7 — sets a custom schedule from 00:00 to 23:59 with normal warmth (middle of the slider); reduces blue light emission permanently without requiring manual toggling each evening"
     "notifications_disable|ui|Disable ALL notifications system-wide — turns off Notification Centre banners, alerts, badges, and sounds for every app; eliminates all visual and audible interruptions without per-app configuration"
+    "login_reopen|ui|Disable 'Reopen windows when logging back in' — prevents macOS from restoring all previously open app windows on login; eliminates the burst of app launches that occurs immediately after every reboot or login"
+    "state_restoration|ui|Disable per-app state restoration — prevents apps from restoring their last window state on next launch; eliminates hidden auto-launches triggered by the NSQuitAlwaysKeepsWindows system"
+    "saved_state_cleanup|ui|Delete saved application state for Apple bloatware — removes ~/Library/Saved Application State directories for Tips, News, Stocks, TV, Music, and Photos so these apps cannot auto-resume windows on login"
+    "widget_cleanup|ui|Remove widget containers for unused Apple apps — deletes ~/Library/Containers entries for Tips, News, Stocks, and Photos widgets that spawn background extension processes even when the parent app is not open"
     # ── power ───────────────────────────────────────────────────────────────
     "power_mode_auto|power|AC power mode → Auto — CPU and GPU boost to full performance under load and throttle back at idle; avoids locking into High Power Mode (wastes energy at idle) or Low Power Mode (caps burst performance)"
     "power_display_sleep_ac|power|AC display sleep → 5 min — display turns off after 5 minutes of inactivity on AC power; saves GPU/display energy without being disruptive during normal work sessions"
@@ -2002,6 +2006,108 @@ apply_notifications_disable() {
         ok "All notifications disabled (DND always-on + per-app flags zeroed)"
         log "  Note: macOS Focus/DND may need manual confirmation in System Settings → Focus"
     fi
+}
+
+apply_login_reopen() {
+    local num="$1" desc="$2"
+    local current default="true (reopen on login)" optimized="false (no reopen)"
+    current=$(dfw read com.apple.loginwindow TALLogoutSavesState 2>/dev/null || echo "(not set)")
+    _run_item "$num" "login_reopen" "$desc" "$current" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
+    if [ "$_rc" -eq 2 ]; then
+        dfw delete com.apple.loginwindow TALLogoutSavesState 2>/dev/null || true
+        ok "TALLogoutSavesState reset to macOS default (reopen windows on login)"
+    else
+        dfw write com.apple.loginwindow TALLogoutSavesState -bool false
+        ok "TALLogoutSavesState = false (no windows reopened on login)"
+    fi
+}
+
+apply_state_restoration() {
+    local num="$1" desc="$2"
+    local current default="true (apps restore windows)" optimized="false (apps start fresh)"
+    current=$(dfw read NSGlobalDomain NSQuitAlwaysKeepsWindows 2>/dev/null || echo "(not set)")
+    _run_item "$num" "state_restoration" "$desc" "$current" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
+    if [ "$_rc" -eq 2 ]; then
+        dfw delete NSGlobalDomain NSQuitAlwaysKeepsWindows 2>/dev/null || true
+        ok "NSQuitAlwaysKeepsWindows reset to macOS default (restore windows)"
+    else
+        dfw write NSGlobalDomain NSQuitAlwaysKeepsWindows -bool false
+        ok "NSQuitAlwaysKeepsWindows = false (apps start fresh)"
+    fi
+}
+
+apply_saved_state_cleanup() {
+    local num="$1" desc="$2"
+    local SAVED_STATE_DIR="$REAL_HOME/Library/Saved Application State"
+    local TARGETS=(
+        "com.apple.Tips.savedState"
+        "com.apple.news.savedState"
+        "com.apple.stocks.savedState"
+        "com.apple.TV.savedState"
+        "com.apple.Music.savedState"
+        "com.apple.Photos.savedState"
+    )
+    local found=0
+    for t in "${TARGETS[@]}"; do
+        [ -d "$SAVED_STATE_DIR/$t" ] && found=$((found + 1))
+    done
+    local current="$found/${#TARGETS[@]} saved state dirs exist" default="(dirs present)" optimized="all deleted + locked"
+    _run_item "$num" "saved_state_cleanup" "$desc" "$current" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
+    if [ "$_rc" -eq 2 ]; then
+        for t in "${TARGETS[@]}"; do
+            local _path="$SAVED_STATE_DIR/$t"
+            chflags nouchg "$_path" 2>/dev/null || true
+            rm -rf "$_path" 2>/dev/null || true
+        done
+        ok "Saved state dirs removed (unlocked); apps may recreate them"
+    else
+        local deleted=0
+        for t in "${TARGETS[@]}"; do
+            local _path="$SAVED_STATE_DIR/$t"
+            # Remove existing saved state
+            chflags nouchg "$_path" 2>/dev/null || true
+            rm -rf "$_path" 2>/dev/null || true
+            # Create empty dir and lock it so macOS cannot recreate the state
+            sudo -u "$REAL_USER" mkdir -p "$_path"
+            chflags uchg "$_path"
+            deleted=$((deleted + 1))
+        done
+        ok "Deleted and locked $deleted saved state dirs (Tips, News, Stocks, TV, Music, Photos)"
+    fi
+}
+
+apply_widget_cleanup() {
+    local num="$1" desc="$2"
+    local CONTAINERS_DIR="$REAL_HOME/Library/Containers"
+    local TARGETS=(
+        "com.apple.tips.Widget"
+        "com.apple.news.widget"
+        "com.apple.stocks.widget"
+        "com.apple.Photos.PhotosReliveWidget"
+    )
+    local found=0
+    for t in "${TARGETS[@]}"; do
+        [ -d "$CONTAINERS_DIR/$t" ] && found=$((found + 1))
+    done
+    local current="$found/${#TARGETS[@]} widget containers exist" default="(containers present)" optimized="all deleted"
+    _run_item "$num" "widget_cleanup" "$desc" "$current" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
+    if [ "$_rc" -eq 2 ]; then
+        warn "Cannot auto-restore widget containers — re-add widgets via System Settings → Desktop & Dock → Widgets"
+        return 0
+    fi
+    local removed=0
+    for t in "${TARGETS[@]}"; do
+        local _path="$CONTAINERS_DIR/$t"
+        if [ -d "$_path" ]; then
+            rm -rf "$_path" 2>/dev/null && removed=$((removed + 1)) || true
+        fi
+    done
+    ok "Removed $removed widget containers (Tips, News, Stocks, Photos)"
+    log "  Note: Widgets may recreate containers on next use; pair with widgets_disable for permanent effect"
 }
 
 # ── POWER ──────────────────────────────────────────────────────────────────
