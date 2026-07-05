@@ -1,7 +1,7 @@
 #!/bin/bash
 # ==============================================================================
 # OPTIMIZATIONS — macOS 26.4 / Apple M5 Max
-# 117 individually confirmed system preferences and tuning settings.
+# 118 individually confirmed system preferences and tuning settings.
 #
 # USAGE:
 #   sudo ./optimizations.sh [OPTIONS]
@@ -256,6 +256,7 @@ OPTIM_LIST=(
     "saved_state_cleanup|ui|Delete saved application state for Apple bloatware — removes ~/Library/Saved Application State directories for Tips, News, Stocks, TV, Music, and Photos so these apps cannot auto-resume windows on login"
     "widget_cleanup|ui|Remove widget containers for unused Apple apps — deletes ~/Library/Containers entries for Tips, News, Stocks, and Photos widgets that spawn background extension processes even when the parent app is not open"
     # ── power ───────────────────────────────────────────────────────────────
+    "battery_charge_limit|power|Set battery charge limit to 80% — caps charging at 80% state-of-charge to reduce lithium-ion battery degradation; keeping the battery between 20-80% significantly extends its cycle life and long-term maximum capacity"
     "power_mode_auto|power|AC power mode → Auto — CPU and GPU boost to full performance under load and throttle back at idle; avoids locking into High Power Mode (wastes energy at idle) or Low Power Mode (caps burst performance)"
     "power_display_sleep_ac|power|AC display sleep → 5 min — display turns off after 5 minutes of inactivity on AC power; saves GPU/display energy without being disruptive during normal work sessions"
     "power_system_sleep_ac|power|AC system sleep → 10 min — the system sleeps 10 minutes after the display sleeps on AC; long enough to avoid interrupting long-running tasks"
@@ -2131,6 +2132,29 @@ apply_widget_cleanup() {
 }
 
 # ── POWER ──────────────────────────────────────────────────────────────────
+
+apply_battery_charge_limit() {
+    local num="$1" desc="$2"
+    local CHARGING_PLIST="/Library/Preferences/com.apple.powerd.charging"
+    local BATTUI_PLIST="com.apple.batteryui.charging.mac"
+    local current default="100 (no limit)" optimized="80"
+    current=$(sudo defaults read "$CHARGING_PLIST" ChargeLimit 2>/dev/null || echo "(not set)")
+    _run_item "$num" "battery_charge_limit" "$desc" "$current" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
+    if [ "$_rc" -eq 2 ]; then
+        sudo defaults delete "$CHARGING_PLIST" ChargeLimit 2>/dev/null || true
+        dfw delete "$BATTUI_PLIST" "com.apple.batteryui.charging.mac.limit" 2>/dev/null || true
+        dfw delete "$BATTUI_PLIST" "com.apple.batteryui.charging.mac.prior.limit" 2>/dev/null || true
+        sudo killall -HUP powerd 2>/dev/null || true
+        ok "Battery charge limit removed (charges to 100%)"
+    else
+        sudo defaults write "$CHARGING_PLIST" ChargeLimit -int 80
+        dfw write "$BATTUI_PLIST" "com.apple.batteryui.charging.mac.limit" -int 80
+        dfw write "$BATTUI_PLIST" "com.apple.batteryui.charging.mac.prior.limit" -int 80
+        sudo killall -HUP powerd 2>/dev/null || true
+        ok "Battery charge limit = 80%"
+    fi
+}
 
 apply_power_mode_auto() {
     local num="$1" desc="$2"
