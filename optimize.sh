@@ -2135,28 +2135,21 @@ apply_widget_cleanup() {
 
 apply_battery_charge_limit() {
     local num="$1" desc="$2"
-    local CHARGING_PLIST="/Library/Preferences/com.apple.powerd.charging"
-    local BATTUI_PLIST="com.apple.batteryui.charging.mac"
     local LIMIT=80
     local current default="100 (no limit)" optimized="$LIMIT"
     current=$(pmset -g everything 2>/dev/null | grep "chargeSocLimitSoc" | head -1 | awk '{print $NF}' | tr -d ';' || echo "(not set)")
     _run_item "$num" "battery_charge_limit" "$desc" "$current" "$default" "$optimized"
     local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
     if [ "$_rc" -eq 2 ]; then
-        sudo defaults delete "$CHARGING_PLIST" ChargeLimit 2>/dev/null || true
-        dfw delete "$BATTUI_PLIST" "com.apple.batteryui.charging.mac.limit" 2>/dev/null || true
-        dfw delete "$BATTUI_PLIST" "com.apple.batteryui.charging.mac.prior.limit" 2>/dev/null || true
-        sudo killall -HUP powerd 2>/dev/null || true
-        ok "Battery charge limit removed (charges to 100%)"
-        warn "May require manual confirmation in System Settings → Battery"
+        warn "Cannot remove charge limit from CLI — set manually: System Settings → Battery → Charge Limit → off"
     else
-        sudo defaults write "$CHARGING_PLIST" ChargeLimit -int "$LIMIT"
-        dfw write "$BATTUI_PLIST" "com.apple.batteryui.charging.mac.limit" -int "$LIMIT"
-        dfw write "$BATTUI_PLIST" "com.apple.batteryui.charging.mac.prior.limit" -int "$LIMIT"
-        sudo killall PowerUIAgent 2>/dev/null || true
-        sudo killall -HUP powerd 2>/dev/null || true
-        ok "Battery charge limit = ${LIMIT}%"
-        warn "If not effective, confirm in System Settings → Battery → Charge Limit"
+        if [ "$current" = "$LIMIT" ]; then
+            ok "Battery charge limit already set to ${LIMIT}%"
+        else
+            warn "Cannot set charge limit from CLI (macOS uses private XPC)"
+            warn "Set manually: System Settings → Battery → Charge Limit → ${LIMIT}%"
+            open "x-apple.systempreferences:com.apple.Battery-Settings.extension" 2>/dev/null || true
+        fi
     fi
 }
 
