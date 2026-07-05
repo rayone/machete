@@ -2131,14 +2131,15 @@ apply_widget_cleanup() {
     log "  Note: Widgets may recreate containers on next use; pair with widgets_disable for permanent effect"
 }
 
-# ── POWER ──────────────────────────────────────────────────────────────────
+# ── POWER ─────────────────────────────────────────────────────────────────
 
 apply_battery_charge_limit() {
     local num="$1" desc="$2"
     local CHARGING_PLIST="/Library/Preferences/com.apple.powerd.charging"
     local BATTUI_PLIST="com.apple.batteryui.charging.mac"
-    local current default="100 (no limit)" optimized="80"
-    current=$(sudo defaults read "$CHARGING_PLIST" ChargeLimit 2>/dev/null || echo "(not set)")
+    local LIMIT=80
+    local current default="100 (no limit)" optimized="$LIMIT"
+    current=$(pmset -g everything 2>/dev/null | grep "chargeSocLimitSoc" | head -1 | awk '{print $NF}' | tr -d ';' || echo "(not set)")
     _run_item "$num" "battery_charge_limit" "$desc" "$current" "$default" "$optimized"
     local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
     if [ "$_rc" -eq 2 ]; then
@@ -2147,12 +2148,15 @@ apply_battery_charge_limit() {
         dfw delete "$BATTUI_PLIST" "com.apple.batteryui.charging.mac.prior.limit" 2>/dev/null || true
         sudo killall -HUP powerd 2>/dev/null || true
         ok "Battery charge limit removed (charges to 100%)"
+        warn "May require manual confirmation in System Settings → Battery"
     else
-        sudo defaults write "$CHARGING_PLIST" ChargeLimit -int 80
-        dfw write "$BATTUI_PLIST" "com.apple.batteryui.charging.mac.limit" -int 80
-        dfw write "$BATTUI_PLIST" "com.apple.batteryui.charging.mac.prior.limit" -int 80
+        sudo defaults write "$CHARGING_PLIST" ChargeLimit -int "$LIMIT"
+        dfw write "$BATTUI_PLIST" "com.apple.batteryui.charging.mac.limit" -int "$LIMIT"
+        dfw write "$BATTUI_PLIST" "com.apple.batteryui.charging.mac.prior.limit" -int "$LIMIT"
+        sudo killall PowerUIAgent 2>/dev/null || true
         sudo killall -HUP powerd 2>/dev/null || true
-        ok "Battery charge limit = 80%"
+        ok "Battery charge limit = ${LIMIT}%"
+        warn "If not effective, confirm in System Settings → Battery → Charge Limit"
     fi
 }
 
