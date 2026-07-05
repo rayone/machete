@@ -1,7 +1,7 @@
 #!/bin/bash
 # ==============================================================================
 # OPTIMIZATIONS — macOS 26.4 / Apple M5 Max
-# 116 individually confirmed system preferences and tuning settings.
+# 117 individually confirmed system preferences and tuning settings.
 #
 # USAGE:
 #   sudo ./optimizations.sh [OPTIONS]
@@ -174,7 +174,8 @@ OPTIM_LIST=(
     "tap_to_click|trackpad|Enable tap-to-click — a light tap registers as a click without physically pressing the trackpad down, reducing fatigue and noise"
     "tap_to_drag|trackpad|Enable tap-to-drag — double-tap and hold to drag without a physical press; complements tap-to-click for moving windows and files"
     "three_finger_drag|trackpad|Enable 3-finger drag — drag windows, select text, and move files by swiping with three fingers; more ergonomic than click-and-hold for extended drags"
-    "three_finger_tap|trackpad|Disable 3-finger tap Look Up — prevents accidental dictionary popups when gesturing; look up still works via Force Touch"
+    "two_finger_tap_lookup|trackpad|Enable 2-finger tap for Look Up & Data Detectors — tap with two fingers on any word to show definition, Wikipedia preview, or contextual data; replaces Force Touch look-up which requires a hard press"
+    "trackpad_click_light|trackpad|Set trackpad click force to Light — the lightest haptic threshold requires minimal force to register a click, reducing finger fatigue and enabling near-silent clicks"
     "natural_scroll|trackpad|Natural scroll OFF — restores traditional direction (wheel down = page down) matching every non-Apple scroll device and most muscle memory"
     # ── spotlight ───────────────────────────────────────────────────────────
     "spotlight_boot_volume|spotlight|Keep Spotlight indexing ON for the boot volume — required for Cmd+Space app search; without it Spotlight cannot find any installed apps"
@@ -691,20 +692,39 @@ apply_three_finger_drag() {
     fi
 }
 
-apply_three_finger_tap() {
+apply_two_finger_tap_lookup() {
     local num="$1" desc="$2"
-    local current default="2 (Look Up)" optimized="0 (disabled)"
+    local current default="0 (off) or Force Click" optimized="2 (Tap with Two Fingers)"
     current=$(dfw read com.apple.AppleMultitouchTrackpad TrackpadThreeFingerTapGesture 2>/dev/null || echo "(not set)")
-    _run_item "$num" "three_finger_tap" "$desc" "$current" "$default" "$optimized"
+    _run_item "$num" "two_finger_tap_lookup" "$desc" "$current" "$default" "$optimized"
     local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
     if [ "$_rc" -eq 2 ]; then
-        dfw write com.apple.AppleMultitouchTrackpad TrackpadThreeFingerTapGesture -int 2
-        dfw write com.apple.driver.AppleBluetoothMultitouch.trackpad TrackpadThreeFingerTapGesture -int 2
-        ok "3-finger tap reset to macOS default (Look Up = 2)"
-    else
         dfw write com.apple.AppleMultitouchTrackpad TrackpadThreeFingerTapGesture -int 0
         dfw write com.apple.driver.AppleBluetoothMultitouch.trackpad TrackpadThreeFingerTapGesture -int 0
-        ok "3-finger tap Look Up disabled"
+        dfw write NSGlobalDomain com.apple.trackpad.forceClick -bool true
+        ok "Look Up reset to macOS default (Force Click with One Finger)"
+    else
+        dfw write com.apple.AppleMultitouchTrackpad TrackpadThreeFingerTapGesture -int 2
+        dfw write com.apple.driver.AppleBluetoothMultitouch.trackpad TrackpadThreeFingerTapGesture -int 2
+        dfw write NSGlobalDomain com.apple.trackpad.forceClick -bool false
+        ok "Look Up = Tap with Two Fingers (TrackpadThreeFingerTapGesture=2)"
+    fi
+}
+
+apply_trackpad_click_light() {
+    local num="$1" desc="$2"
+    local current default="1 (Medium)" optimized="0 (Light)"
+    current=$(dfw read com.apple.AppleMultitouchTrackpad FirstClickThreshold 2>/dev/null || echo "(not set)")
+    _run_item "$num" "trackpad_click_light" "$desc" "$current" "$default" "$optimized"
+    local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
+    if [ "$_rc" -eq 2 ]; then
+        dfw write com.apple.AppleMultitouchTrackpad FirstClickThreshold -int 1
+        dfw write com.apple.AppleMultitouchTrackpad SecondClickThreshold -int 1
+        ok "Click threshold reset to macOS default (Medium = 1)"
+    else
+        dfw write com.apple.AppleMultitouchTrackpad FirstClickThreshold -int 0
+        dfw write com.apple.AppleMultitouchTrackpad SecondClickThreshold -int 0
+        ok "Click threshold = Light (0)"
     fi
 }
 
