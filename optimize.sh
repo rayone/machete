@@ -174,7 +174,7 @@ OPTIM_LIST=(
     "tap_to_click|trackpad|Enable tap-to-click — a light tap registers as a click without physically pressing the trackpad down, reducing fatigue and noise"
     "tap_to_drag|trackpad|Enable tap-to-drag — double-tap and hold to drag without a physical press; complements tap-to-click for moving windows and files"
     "three_finger_drag|trackpad|Enable 3-finger drag — drag windows, select text, and move files by swiping with three fingers; more ergonomic than click-and-hold for extended drags"
-    "two_finger_tap_lookup|trackpad|Enable 2-finger tap for Look Up & Data Detectors — tap with two fingers on any word to show definition, Wikipedia preview, or contextual data; replaces Force Touch look-up which requires a hard press"
+    "disable_lookup_gesture|trackpad|Disable Look Up & Data Detectors gesture — prevents the system 3-finger/2-finger tap from triggering dictionary popups, freeing the gesture for third-party apps like MiddleClick; spell check and right-click Look Up still work"
     "trackpad_click_light|trackpad|Set trackpad click force to Light — the lightest haptic threshold requires minimal force to register a click, reducing finger fatigue and enabling near-silent clicks"
     "natural_scroll|trackpad|Natural scroll OFF — restores traditional direction (wheel down = page down) matching every non-Apple scroll device and most muscle memory"
     # ── spotlight ───────────────────────────────────────────────────────────
@@ -692,22 +692,22 @@ apply_three_finger_drag() {
     fi
 }
 
-apply_two_finger_tap_lookup() {
+apply_disable_lookup_gesture() {
     local num="$1" desc="$2"
-    local current default="0 (off) or Force Click" optimized="2 (Tap with Two Fingers)"
+    local current default="2 (Tap with Two Fingers)" optimized="0 (disabled)"
     current=$(dfw read com.apple.AppleMultitouchTrackpad TrackpadThreeFingerTapGesture 2>/dev/null || echo "(not set)")
-    _run_item "$num" "two_finger_tap_lookup" "$desc" "$current" "$default" "$optimized"
+    _run_item "$num" "disable_lookup_gesture" "$desc" "$current" "$default" "$optimized"
     local _rc=$?; [ "$_rc" -eq 1 ] && return 0; [ "$DRY_RUN" = true ] && return 0
     if [ "$_rc" -eq 2 ]; then
-        dfw write com.apple.AppleMultitouchTrackpad TrackpadThreeFingerTapGesture -int 0
-        dfw write com.apple.driver.AppleBluetoothMultitouch.trackpad TrackpadThreeFingerTapGesture -int 0
-        dfw write NSGlobalDomain com.apple.trackpad.forceClick -bool true
-        ok "Look Up reset to macOS default (Force Click with One Finger)"
-    else
         dfw write com.apple.AppleMultitouchTrackpad TrackpadThreeFingerTapGesture -int 2
         dfw write com.apple.driver.AppleBluetoothMultitouch.trackpad TrackpadThreeFingerTapGesture -int 2
         dfw write NSGlobalDomain com.apple.trackpad.forceClick -bool false
-        ok "Look Up = Tap with Two Fingers (TrackpadThreeFingerTapGesture=2)"
+        ok "Look Up gesture reset to macOS default (Tap with Two Fingers)"
+    else
+        dfw write com.apple.AppleMultitouchTrackpad TrackpadThreeFingerTapGesture -int 0
+        dfw write com.apple.driver.AppleBluetoothMultitouch.trackpad TrackpadThreeFingerTapGesture -int 0
+        dfw write NSGlobalDomain com.apple.trackpad.forceClick -bool false
+        ok "Look Up gesture disabled (frees 3-finger tap for MiddleClick)"
     fi
 }
 
